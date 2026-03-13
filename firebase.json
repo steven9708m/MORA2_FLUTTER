@@ -1,0 +1,45 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "grupo-juvenil-morados",
+          "appId": "1:630942576544:android:aeba264caa144b79a03ec5",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "grupo-juvenil-morados",
+          "configurations": {
+            "android": "1:630942576544:android:aeba264caa144b79a03ec5",
+            "ios": "1:630942576544:ios:dec439779ce5be10a03ec5",
+            "macos": "1:630942576544:ios:dec439779ce5be10a03ec5",
+            "web": "1:630942576544:web:c7a50575b4fedccda03ec5",
+            "windows": "1:630942576544:web:fafd8e9192bcd704a03ec5"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "database": "jvmorados",
+    "location": "northamerica-south1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
