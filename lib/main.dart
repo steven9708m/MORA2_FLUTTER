@@ -1,123 +1,120 @@
-import 'dart:typed_data';
-
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:excel/excel.dart';
-import 'package:file_saver/file_saver.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(const MyApp());
+
+  runApp(const JvLeadersApp());
 }
 
-enum DashboardRange { all, last30Days, thisMonth, thisYear }
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class JvLeadersApp extends StatelessWidget {
+  const JvLeadersApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final base = ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF3B82F6),
-        brightness: Brightness.light,
-      ),
+    final scheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF1D4ED8),
+      brightness: Brightness.light,
     );
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: base.copyWith(
-        scaffoldBackgroundColor: const Color(0xFFF7F9FC),
-        appBarTheme: const AppBarTheme(
-          centerTitle: false,
-          elevation: 0,
-          backgroundColor: Colors.transparent,
-          foregroundColor: Color(0xFF111827),
-          titleTextStyle: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF111827),
-          ),
-        ),
-        cardTheme: CardThemeData(
-          elevation: 0,
-          color: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: Color(0xFFE5E7EB)),
-          ),
-          margin: EdgeInsets.zero,
+      title: 'JV Líderes',
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: scheme,
+        scaffoldBackgroundColor: const Color(0xFFF4F7FB),
+        textTheme: ThemeData.light().textTheme.apply(
+          bodyColor: const Color(0xFF0F172A),
+          displayColor: const Color(0xFF0F172A),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: Colors.white,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
-            vertical: 14,
+            vertical: 16,
           ),
+          hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+          prefixIconColor: const Color(0xFF64748B),
+          suffixIconColor: const Color(0xFF64748B),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            borderRadius: BorderRadius.circular(18),
+            borderSide: BorderSide.none,
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            borderRadius: BorderRadius.circular(18),
+            borderSide: BorderSide.none,
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 1.4),
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.4),
           ),
         ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-        ),
-        snackBarTheme: SnackBarThemeData(
-          behavior: SnackBarBehavior.floating,
+        chipTheme: ThemeData.light().chipTheme.copyWith(
+          backgroundColor: Colors.white,
+          selectedColor: const Color(0xFFDCE7FF),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
+          side: BorderSide.none,
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF334155),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         ),
       ),
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-
-          if (snapshot.hasData) {
-            return const HomePage();
-          }
-
-          return const LoginPage();
-        },
-      ),
+      home: const AuthGate(),
     );
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/*                                  AUTH GATE                                 */
+/* -------------------------------------------------------------------------- */
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SplashScreen();
+        }
+
+        if (snapshot.hasData) {
+          return const DashboardShell();
+        }
+
+        return const LoginPage();
+      },
+    );
+  }
+}
+
+class SplashScreen extends StatelessWidget {
+  const SplashScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                   LOGIN                                    */
+/* -------------------------------------------------------------------------- */
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -127,2315 +124,4520 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
+  final emailCtrl = TextEditingController();
+  final passCtrl = TextEditingController();
 
-  bool isLoading = false;
-  bool isRegisterMode = false;
-  bool obscurePassword = true;
+  bool loading = false;
+  String? errorText;
 
-  Future<void> submit() async {
-    final email = emailController.text.trim();
-    final password = passwordController.text.trim();
+  @override
+  void dispose() {
+    emailCtrl.dispose();
+    passCtrl.dispose();
+    super.dispose();
+  }
 
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Completa correo y contraseña.")),
-      );
-      return;
-    }
-
-    setState(() => isLoading = true);
+  Future<void> signIn() async {
+    setState(() {
+      loading = true;
+      errorText = null;
+    });
 
     try {
-      if (isRegisterMode) {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
-      } else {
-        await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
-      }
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: emailCtrl.text.trim(),
+        password: passCtrl.text.trim(),
+      );
     } on FirebaseAuthException catch (e) {
-      String message = "Ocurrió un error.";
-      switch (e.code) {
-        case "user-not-found":
-          message = "No existe un usuario con ese correo.";
-          break;
-        case "wrong-password":
-          message = "Contraseña incorrecta.";
-          break;
-        case "email-already-in-use":
-          message = "Ese correo ya está registrado.";
-          break;
-        case "invalid-email":
-          message = "Correo inválido.";
-          break;
-        case "weak-password":
-          message = "La contraseña es muy débil.";
-          break;
-        case "invalid-credential":
-          message = "Credenciales inválidas.";
-          break;
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Error: $e")));
-      }
+      setState(() {
+        errorText = e.message ?? 'Ocurrió un error al iniciar sesión.';
+      });
+    } catch (_) {
+      setState(() {
+        errorText = 'Ocurrió un error inesperado.';
+      });
     } finally {
       if (mounted) {
-        setState(() => isLoading = false);
+        setState(() => loading = false);
+      }
+    }
+  }
+
+  Future<void> createLeaderUser() async {
+    setState(() {
+      loading = true;
+      errorText = null;
+    });
+
+    try {
+      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: emailCtrl.text.trim(),
+        password: passCtrl.text.trim(),
+      );
+
+      await FirebaseFirestore.instance
+          .collection('leaders')
+          .doc(cred.user!.uid)
+          .set({
+            'name': emailCtrl.text.trim().split('@').first,
+            'email': emailCtrl.text.trim(),
+            'zone': 'Zona 1',
+            'reports': 0,
+            'status': 'Activo',
+            'lastActivity': Timestamp.now(),
+            'createdAt': Timestamp.now(),
+          }, SetOptions(merge: true));
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        errorText = e.message ?? 'No se pudo crear el usuario.';
+      });
+    } catch (_) {
+      setState(() {
+        errorText = 'Ocurrió un error inesperado.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => loading = false);
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final title = isRegisterMode ? "Crear cuenta" : "Iniciar sesión";
-    final buttonText = isRegisterMode ? "Registrarme" : "Entrar";
-    final toggleText = isRegisterMode
-        ? "¿Ya tienes cuenta? Inicia sesión"
-        : "¿No tienes cuenta? Regístrate";
-
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
+          constraints: const BoxConstraints(maxWidth: 430),
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        color: const Color(0xFFEFF6FF),
+            child: SurfaceCard(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
                       ),
-                      child: const Icon(
-                        Icons.groups_2_outlined,
-                        size: 36,
-                        color: Color(0xFF2563EB),
-                      ),
+                      borderRadius: BorderRadius.circular(22),
                     ),
-                    const SizedBox(height: 18),
+                    child: const Icon(
+                      Icons.groups_2,
+                      color: Colors.white,
+                      size: 34,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'JV Líderes',
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Inicia sesión para entrar al panel',
+                    style: TextStyle(color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: emailCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Correo',
+                      prefixIcon: Icon(Icons.email_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: passCtrl,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Contraseña',
+                      prefixIcon: Icon(Icons.lock_outline),
+                    ),
+                  ),
+                  if (errorText != null) ...[
+                    const SizedBox(height: 14),
                     Text(
-                      title,
+                      errorText!,
                       style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                        fontWeight: FontWeight.w600,
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      "Sistema de gestión del ministerio juvenil",
-                      style: TextStyle(color: Color(0xFF6B7280)),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-                    TextField(
-                      controller: emailController,
-                      decoration: const InputDecoration(
-                        labelText: "Correo",
-                        prefixIcon: Icon(Icons.email_outlined),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: passwordController,
-                      obscureText: obscurePassword,
-                      decoration: InputDecoration(
-                        labelText: "Contraseña",
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          onPressed: () {
-                            setState(() => obscurePassword = !obscurePassword);
-                          },
-                          icon: Icon(
-                            obscurePassword
-                                ? Icons.visibility
-                                : Icons.visibility_off,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: isLoading ? null : submit,
-                        child: isLoading
-                            ? const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(buttonText),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextButton(
-                      onPressed: isLoading
-                          ? null
-                          : () {
-                              setState(() {
-                                isRegisterMode = !isRegisterMode;
-                              });
-                            },
-                      child: Text(toggleText),
                     ),
                   ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
-
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  int index = 0;
-
-  final pages = const [
-    LeadersPage(),
-    YouthsPage(),
-    AttendancePage(),
-    ReportsPage(),
-    DashboardPage(),
-  ];
-
-  final titles = const [
-    "Líderes",
-    "Jóvenes",
-    "Asistencia",
-    "Reportes",
-    "Dashboard",
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(titles[index]),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: IconButton(
-              tooltip: "Cerrar sesión",
-              onPressed: () async {
-                await FirebaseAuth.instance.signOut();
-              },
-              icon: const Icon(Icons.logout),
-            ),
-          ),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1280),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: pages[index],
-          ),
-        ),
-      ),
-      bottomNavigationBar: NavigationBar(
-        height: 72,
-        selectedIndex: index,
-        onDestinationSelected: (i) => setState(() => index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.people), label: "Líderes"),
-          NavigationDestination(icon: Icon(Icons.groups), label: "Jóvenes"),
-          NavigationDestination(
-            icon: Icon(Icons.checklist),
-            label: "Asistencia",
-          ),
-          NavigationDestination(icon: Icon(Icons.analytics), label: "Reportes"),
-          NavigationDestination(
-            icon: Icon(Icons.bar_chart),
-            label: "Dashboard",
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class LeadersPage extends StatefulWidget {
-  const LeadersPage({super.key});
-
-  @override
-  State<LeadersPage> createState() => _LeadersPageState();
-}
-
-class _LeadersPageState extends State<LeadersPage> {
-  final TextEditingController nameController = TextEditingController();
-  late final FirebaseFirestore db;
-
-  @override
-  void initState() {
-    super.initState();
-    db = FirebaseFirestore.instanceFor(
-      app: Firebase.app(),
-      databaseId: "mora2",
-    );
-  }
-
-  Future<void> addLeader() async {
-    final name = nameController.text.trim();
-    if (name.isEmpty) return;
-
-    try {
-      await db.collection("leaders").add({
-        "name": name,
-        "createdAt": Timestamp.now(),
-      });
-      nameController.clear();
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("✅ Líder guardado")));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("❌ Error guardando líder: $e")));
-      }
-    }
-  }
-
-  Future<void> diagnosticsGetLeaders() async {
-    try {
-      final snap = await db
-          .collection("leaders")
-          .orderBy("createdAt", descending: true)
-          .limit(5)
-          .get();
-
-      debugPrint("✅ mora2 leaders count (últimos 5): ${snap.docs.length}");
-      for (final d in snap.docs) {
-        debugPrint(" - ${d.id} => ${d.data()}");
-      }
-    } catch (e) {
-      debugPrint("❌ Diagnóstico mora2 error: $e");
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: "Nombre del líder",
-                  ),
-                  onSubmitted: (_) => addLeader(),
-                ),
-              ),
-              const SizedBox(width: 10),
-              ElevatedButton(
-                onPressed: addLeader,
-                child: const Text("Guardar"),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: OutlinedButton.icon(
-            icon: const Icon(Icons.bug_report),
-            label: const Text("Diagnóstico: leer leaders (get) en mora2"),
-            onPressed: diagnosticsGetLeaders,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: db
-                .collection("leaders")
-                .orderBy("createdAt", descending: true)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(child: Text("Error: ${snapshot.error}"));
-              }
-              if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              final leaders = snapshot.data!.docs;
-              if (leaders.isEmpty) {
-                return const Center(
-                  child: Text("No hay líderes registrados en mora2"),
-                );
-              }
-
-              return ListView.builder(
-                itemCount: leaders.length,
-                itemBuilder: (context, index) {
-                  final leader = leaders[index];
-                  final data = leader.data() as Map<String, dynamic>;
-                  return ListTile(
-                    title: Text((data["name"] ?? "").toString()),
-                    subtitle: Text("docId: ${leader.id}"),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class YouthsPage extends StatefulWidget {
-  const YouthsPage({super.key});
-
-  @override
-  State<YouthsPage> createState() => _YouthsPageState();
-}
-
-class _YouthsPageState extends State<YouthsPage> {
-  late final FirebaseFirestore db;
-
-  final fullNameController = TextEditingController();
-  final phoneController = TextEditingController();
-
-  String? selectedLeaderId;
-  String spiritualLevel = "nuevos";
-
-  final spiritualLevels = const [
-    "nuevos",
-    "doctrina",
-    "bautismo",
-    "maestro_ninos",
-    "liderazgo",
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    db = FirebaseFirestore.instanceFor(
-      app: Firebase.app(),
-      databaseId: "mora2",
-    );
-  }
-
-  Future<void> addYouth() async {
-    final name = fullNameController.text.trim();
-    final phone = phoneController.text.trim();
-
-    if (selectedLeaderId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Selecciona un líder primero.")),
-      );
-      return;
-    }
-    if (name.isEmpty) return;
-
-    try {
-      await db.collection("youths").add({
-        "fullName": name,
-        "phone": phone,
-        "leaderId": selectedLeaderId,
-        "spiritualLevel": spiritualLevel,
-        "createdAt": Timestamp.now(),
-      });
-
-      fullNameController.clear();
-      phoneController.clear();
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("✅ Joven guardado")));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("❌ Error: $e")));
-      }
-    }
-  }
-
-  Future<void> updateYouthLevel(String youthId, String newLevel) async {
-    try {
-      await db.collection("youths").doc(youthId).update({
-        "spiritualLevel": newLevel,
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("❌ Error actualizando: $e")));
-      }
-    }
-  }
-
-  Future<void> deleteYouth(String youthId) async {
-    try {
-      await db.collection("youths").doc(youthId).delete();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("❌ Error eliminando: $e")));
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: StreamBuilder<QuerySnapshot>(
-            stream: db
-                .collection("leaders")
-                .orderBy("createdAt", descending: true)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const LinearProgressIndicator();
-              }
-              final leaders = snapshot.data!.docs;
-
-              if (leaders.isEmpty) {
-                return const Text(
-                  "Primero registra al menos 1 líder en la pestaña Líderes.",
-                );
-              }
-
-              selectedLeaderId ??= leaders.first.id;
-
-              return Row(
-                children: [
-                  const Text("Líder: "),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: DropdownButton<String>(
-                      isExpanded: true,
-                      value: selectedLeaderId,
-                      items: leaders.map((d) {
-                        final data = d.data() as Map<String, dynamic>;
-                        final name = (data["name"] ?? "").toString();
-                        return DropdownMenuItem(
-                          value: d.id,
-                          child: Text(name.isEmpty ? d.id : name),
-                        );
-                      }).toList(),
-                      onChanged: (val) => setState(() {
-                        selectedLeaderId = val;
-                      }),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            children: [
-              TextField(
-                controller: fullNameController,
-                decoration: const InputDecoration(
-                  labelText: "Nombre del joven",
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: phoneController,
-                decoration: const InputDecoration(
-                  labelText: "Teléfono (opcional)",
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Text("Nivel: "),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: DropdownButton<String>(
-                      isExpanded: true,
-                      value: spiritualLevel,
-                      items: spiritualLevels
-                          .map(
-                            (lvl) =>
-                                DropdownMenuItem(value: lvl, child: Text(lvl)),
-                          )
-                          .toList(),
-                      onChanged: (val) => setState(() {
-                        spiritualLevel = val ?? "nuevos";
-                      }),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  ElevatedButton(
-                    onPressed: addYouth,
-                    child: const Text("Guardar"),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        Expanded(
-          child: selectedLeaderId == null
-              ? const Center(child: Text("Selecciona un líder."))
-              : StreamBuilder<QuerySnapshot>(
-                  stream: db
-                      .collection("youths")
-                      .where("leaderId", isEqualTo: selectedLeaderId)
-                      .orderBy("createdAt", descending: true)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return Center(child: Text("Error: ${snapshot.error}"));
-                    }
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    final youths = snapshot.data!.docs;
-                    if (youths.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          "No hay jóvenes registrados para este líder.",
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: loading ? null : signIn,
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
                         ),
-                      );
-                    }
-
-                    return ListView.builder(
-                      itemCount: youths.length,
-                      itemBuilder: (context, index) {
-                        final doc = youths[index];
-                        final data = doc.data() as Map<String, dynamic>;
-
-                        final fullName = (data["fullName"] ?? "").toString();
-                        final phone = (data["phone"] ?? "").toString();
-                        final level = (data["spiritualLevel"] ?? "nuevos")
-                            .toString();
-
-                        return ListTile(
-                          title: Text(fullName.isEmpty ? doc.id : fullName),
-                          subtitle: Text(
-                            phone.isEmpty ? "Sin teléfono" : phone,
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              DropdownButton<String>(
-                                value: level,
-                                items: spiritualLevels
-                                    .map(
-                                      (lvl) => DropdownMenuItem(
-                                        value: lvl,
-                                        child: Text(lvl),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (val) {
-                                  if (val == null) return;
-                                  updateYouthLevel(doc.id, val);
-                                },
-                              ),
-                              IconButton(
-                                tooltip: "Eliminar",
-                                icon: const Icon(Icons.delete),
-                                onPressed: () => deleteYouth(doc.id),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
+                      ),
+                      child: loading
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Iniciar sesión'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: loading ? null : createLeaderUser,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+                      child: const Text('Crear usuario líder'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
-      ],
+      ),
     );
   }
 }
 
-class AttendancePage extends StatefulWidget {
-  const AttendancePage({super.key});
+/* -------------------------------------------------------------------------- */
+/*                                   MODELS                                   */
+/* -------------------------------------------------------------------------- */
 
-  @override
-  State<AttendancePage> createState() => _AttendancePageState();
+class NavItem {
+  final String label;
+  final IconData icon;
+
+  const NavItem(this.label, this.icon);
 }
 
-class _AttendancePageState extends State<AttendancePage> {
-  late final FirebaseFirestore db;
+class DashboardStat {
+  final String title;
+  final String value;
+  final String change;
+  final IconData icon;
+  final Color color;
 
-  String? selectedLeaderId;
-  String? selectedEventId;
-  DateTime selectedDate = DateTime.now();
+  const DashboardStat({
+    required this.title,
+    required this.value,
+    required this.change,
+    required this.icon,
+    required this.color,
+  });
+}
 
-  final Map<String, bool> presentMap = {};
-  final eventNameController = TextEditingController();
-  String eventType = "virtual";
+class LeaderRecord {
+  final String id;
+  final String name;
+  final String email;
+  final String zone;
+  final int reports;
+  final DateTime? lastActivity;
+  final String status;
 
-  @override
-  void initState() {
-    super.initState();
-    db = FirebaseFirestore.instanceFor(
-      app: Firebase.app(),
-      databaseId: "mora2",
+  const LeaderRecord({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.zone,
+    required this.reports,
+    required this.lastActivity,
+    required this.status,
+  });
+
+  factory LeaderRecord.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? {};
+
+    return LeaderRecord(
+      id: doc.id,
+      name: (data['name'] ?? '').toString(),
+      email: (data['email'] ?? '').toString(),
+      zone: (data['zone'] ?? '').toString(),
+      reports: (data['reports'] ?? 0) is int
+          ? (data['reports'] ?? 0) as int
+          : int.tryParse('${data['reports']}') ?? 0,
+      lastActivity: (data['lastActivity'] is Timestamp)
+          ? (data['lastActivity'] as Timestamp).toDate()
+          : null,
+      status: (data['status'] ?? 'Activo').toString(),
     );
   }
+}
 
-  String dateKey(DateTime d) {
-    final y = d.year.toString().padLeft(4, '0');
-    final m = d.month.toString().padLeft(2, '0');
-    final day = d.day.toString().padLeft(2, '0');
-    return "$y-$m-$day";
-  }
+class RegistroRecord {
+  final String id;
+  final String leaderId;
+  final String leaderName;
+  final String zone;
+  final String type;
+  final String description;
+  final String status;
+  final DateTime? createdAt;
 
-  Future<void> createEvent() async {
-    final name = eventNameController.text.trim();
-    if (name.isEmpty) return;
+  const RegistroRecord({
+    required this.id,
+    required this.leaderId,
+    required this.leaderName,
+    required this.zone,
+    required this.type,
+    required this.description,
+    required this.status,
+    required this.createdAt,
+  });
 
-    try {
-      await db.collection("events").add({
-        "name": name,
-        "type": eventType,
-        "active": true,
-        "createdAt": Timestamp.now(),
-      });
-      eventNameController.clear();
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("✅ Evento creado")));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("❌ Error creando evento: $e")));
-      }
-    }
-  }
+  factory RegistroRecord.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? {};
 
-  Future<void> pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
+    return RegistroRecord(
+      id: doc.id,
+      leaderId: (data['leaderId'] ?? '').toString(),
+      leaderName: (data['leaderName'] ?? '').toString(),
+      zone: (data['zone'] ?? '').toString(),
+      type: (data['type'] ?? '').toString(),
+      description: (data['description'] ?? '').toString(),
+      status: (data['status'] ?? 'Pendiente').toString(),
+      createdAt: data['createdAt'] is Timestamp
+          ? (data['createdAt'] as Timestamp).toDate()
+          : null,
     );
-    if (picked != null) {
-      setState(() {
-        selectedDate = picked;
-        presentMap.clear();
-      });
-    }
+  }
+}
+
+class ReporteRecord {
+  final String id;
+  final String leaderId;
+  final String leaderName;
+  final String zone;
+  final String week;
+  final int attendance;
+  final int newPeople;
+  final String status;
+  final DateTime? createdAt;
+
+  const ReporteRecord({
+    required this.id,
+    required this.leaderId,
+    required this.leaderName,
+    required this.zone,
+    required this.week,
+    required this.attendance,
+    required this.newPeople,
+    required this.status,
+    required this.createdAt,
+  });
+
+  factory ReporteRecord.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? {};
+
+    return ReporteRecord(
+      id: doc.id,
+      leaderId: (data['leaderId'] ?? '').toString(),
+      leaderName: (data['leaderName'] ?? '').toString(),
+      zone: (data['zone'] ?? '').toString(),
+      week: (data['week'] ?? '').toString(),
+      attendance: (data['attendance'] ?? 0) is int
+          ? data['attendance'] as int
+          : int.tryParse('${data['attendance']}') ?? 0,
+      newPeople: (data['newPeople'] ?? 0) is int
+          ? data['newPeople'] as int
+          : int.tryParse('${data['newPeople']}') ?? 0,
+      status: (data['status'] ?? 'Pendiente').toString(),
+      createdAt: (data['createdAt'] is Timestamp)
+          ? (data['createdAt'] as Timestamp).toDate()
+          : null,
+    );
+  }
+}
+
+class ActivityEntry {
+  final String title;
+  final String subtitle;
+  final String time;
+  final Color color;
+
+  const ActivityEntry({
+    required this.title,
+    required this.subtitle,
+    required this.time,
+    required this.color,
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                 FIRESTORE                                  */
+/* -------------------------------------------------------------------------- */
+
+class FirestoreService {
+  static final _db = FirebaseFirestore.instance;
+
+  static Stream<List<LeaderRecord>> leadersStream() {
+    return _db
+        .collection('leaders')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map(LeaderRecord.fromDoc).toList();
+        });
   }
 
-  Future<void> loadYouthsForLeader() async {
-    if (selectedLeaderId == null) return;
+  static Stream<List<RegistroRecord>> registrosStream() {
+    return _db
+        .collection('registros')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map(RegistroRecord.fromDoc).toList();
+        });
+  }
 
-    final snap = await db
-        .collection("youths")
-        .where("leaderId", isEqualTo: selectedLeaderId)
-        .get();
+  static Stream<List<ReporteRecord>> reportesStream() {
+    return _db
+        .collection('reportes')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map(ReporteRecord.fromDoc).toList();
+        });
+  }
 
-    setState(() {
-      presentMap.clear();
-      for (final d in snap.docs) {
-        presentMap[d.id] = false;
-      }
+  static Future<void> addLeader({
+    required String name,
+    required String email,
+    required String zone,
+    required int reports,
+    required String status,
+  }) async {
+    await _db.collection('leaders').add({
+      'name': name,
+      'email': email,
+      'zone': zone,
+      'reports': reports,
+      'status': status,
+      'lastActivity': Timestamp.now(),
+      'createdAt': Timestamp.now(),
     });
   }
 
-  Future<void> saveAttendance() async {
-    if (selectedLeaderId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Selecciona un líder.")));
-      return;
+  static Future<void> updateLeader({
+    required String leaderId,
+    required String name,
+    required String email,
+    required String zone,
+    required int reports,
+    required String status,
+  }) async {
+    await _db.collection('leaders').doc(leaderId).update({
+      'name': name,
+      'email': email,
+      'zone': zone,
+      'reports': reports,
+      'status': status,
+      'lastActivity': Timestamp.now(),
+      'updatedAt': Timestamp.now(),
+    });
+  }
+
+  static Future<void> deleteLeader({required String leaderId}) async {
+    final registros = await _db
+        .collection('registros')
+        .where('leaderId', isEqualTo: leaderId)
+        .get();
+    final reportes = await _db
+        .collection('reportes')
+        .where('leaderId', isEqualTo: leaderId)
+        .get();
+
+    final batch = _db.batch();
+    for (final doc in registros.docs) {
+      batch.delete(doc.reference);
     }
-    if (selectedEventId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Selecciona un evento.")));
-      return;
+    for (final doc in reportes.docs) {
+      batch.delete(doc.reference);
     }
-    if (presentMap.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("No hay jóvenes cargados para este líder."),
-        ),
-      );
-      return;
+    batch.delete(_db.collection('leaders').doc(leaderId));
+    await batch.commit();
+  }
+
+  static Future<void> addRegistro({
+    required String leaderId,
+    required String leaderName,
+    required String zone,
+    required String type,
+    required String description,
+    required String status,
+  }) async {
+    await _db.collection('registros').add({
+      'leaderId': leaderId,
+      'leaderName': leaderName,
+      'zone': zone,
+      'type': type,
+      'description': description,
+      'status': status,
+      'createdAt': Timestamp.now(),
+    });
+
+    await _db.collection('leaders').doc(leaderId).set({
+      'lastActivity': Timestamp.now(),
+    }, SetOptions(merge: true));
+  }
+
+  static Future<void> updateRegistro({
+    required String registroId,
+    required String leaderId,
+    required String leaderName,
+    required String zone,
+    required String type,
+    required String description,
+    required String status,
+  }) async {
+    await _db.collection('registros').doc(registroId).update({
+      'leaderId': leaderId,
+      'leaderName': leaderName,
+      'zone': zone,
+      'type': type,
+      'description': description,
+      'status': status,
+      'updatedAt': Timestamp.now(),
+    });
+
+    await _db.collection('leaders').doc(leaderId).set({
+      'lastActivity': Timestamp.now(),
+    }, SetOptions(merge: true));
+  }
+
+  static Future<void> deleteRegistro({required String registroId}) async {
+    await _db.collection('registros').doc(registroId).delete();
+  }
+
+  static Future<void> addReporte({
+    required String leaderId,
+    required String leaderName,
+    required String zone,
+    required String week,
+    required int attendance,
+    required int newPeople,
+    required String status,
+  }) async {
+    await _db.collection('reportes').add({
+      'leaderId': leaderId,
+      'leaderName': leaderName,
+      'zone': zone,
+      'week': week,
+      'attendance': attendance,
+      'newPeople': newPeople,
+      'status': status,
+      'createdAt': Timestamp.now(),
+    });
+
+    await _db.collection('leaders').doc(leaderId).set({
+      'reports': FieldValue.increment(1),
+      'lastActivity': Timestamp.now(),
+    }, SetOptions(merge: true));
+  }
+
+  static Future<void> updateReporte({
+    required String reporteId,
+    required String oldLeaderId,
+    required String leaderId,
+    required String leaderName,
+    required String zone,
+    required String week,
+    required int attendance,
+    required int newPeople,
+    required String status,
+  }) async {
+    final batch = _db.batch();
+
+    batch.update(_db.collection('reportes').doc(reporteId), {
+      'leaderId': leaderId,
+      'leaderName': leaderName,
+      'zone': zone,
+      'week': week,
+      'attendance': attendance,
+      'newPeople': newPeople,
+      'status': status,
+      'updatedAt': Timestamp.now(),
+    });
+
+    if (oldLeaderId != leaderId) {
+      batch.set(_db.collection('leaders').doc(oldLeaderId), {
+        'reports': FieldValue.increment(-1),
+      }, SetOptions(merge: true));
+      batch.set(_db.collection('leaders').doc(leaderId), {
+        'reports': FieldValue.increment(1),
+        'lastActivity': Timestamp.now(),
+      }, SetOptions(merge: true));
+    } else {
+      batch.set(_db.collection('leaders').doc(leaderId), {
+        'lastActivity': Timestamp.now(),
+      }, SetOptions(merge: true));
     }
 
-    try {
-      final eventDoc = await db.collection("events").doc(selectedEventId).get();
-      final eventName = (eventDoc.data()?["name"] ?? "").toString();
+    await batch.commit();
+  }
 
-      final sessionRef = await db.collection("attendance_sessions").add({
-        "leaderId": selectedLeaderId,
-        "eventId": selectedEventId,
-        "eventName": eventName,
-        "dateKey": dateKey(selectedDate),
-        "createdAt": Timestamp.now(),
-      });
+  static Future<void> deleteReporte({
+    required String reporteId,
+    required String leaderId,
+  }) async {
+    final batch = _db.batch();
+    batch.delete(_db.collection('reportes').doc(reporteId));
+    batch.set(_db.collection('leaders').doc(leaderId), {
+      'reports': FieldValue.increment(-1),
+      'lastActivity': Timestamp.now(),
+    }, SetOptions(merge: true));
+    await batch.commit();
+  }
+}
 
-      final batch = db.batch();
-      presentMap.forEach((youthId, present) {
-        final markRef = db.collection("attendance_marks").doc();
-        batch.set(markRef, {
-          "sessionId": sessionRef.id,
-          "youthId": youthId,
-          "present": present,
-          "createdAt": Timestamp.now(),
-        });
-      });
+/* -------------------------------------------------------------------------- */
+/*                                    DATA                                    */
+/* -------------------------------------------------------------------------- */
 
-      await batch.commit();
+const _navItems = <NavItem>[
+  NavItem('Dashboard', Icons.dashboard_rounded),
+  NavItem('Registros', Icons.receipt_long_rounded),
+  NavItem('Reportes', Icons.bar_chart_rounded),
+  NavItem('Configuración', Icons.settings_rounded),
+];
 
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("✅ Asistencia guardada")));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Error guardando asistencia: $e")),
-        );
-      }
-    }
+const _activities = <ActivityEntry>[
+  ActivityEntry(
+    title: 'María Gómez',
+    subtitle: 'Subió el reporte semanal',
+    time: '12 min',
+    color: Color(0xFF059669),
+  ),
+  ActivityEntry(
+    title: 'Carlos Pérez',
+    subtitle: 'Actualizó asistencia de líderes',
+    time: '38 min',
+    color: Color(0xFF2563EB),
+  ),
+  ActivityEntry(
+    title: 'Ana Martínez',
+    subtitle: 'Quedó marcada para revisión',
+    time: '1 h',
+    color: Color(0xFFF59E0B),
+  ),
+  ActivityEntry(
+    title: 'Sofía Rodríguez',
+    subtitle: 'Cerró seguimiento pendiente',
+    time: '2 h',
+    color: Color(0xFF7C3AED),
+  ),
+];
+
+const _weekTrend = <double>[12, 15, 13, 18, 17, 21, 24];
+const _zoneBars = <double>[78, 64, 89, 56, 72];
+
+/* -------------------------------------------------------------------------- */
+/*                                   SHELL                                    */
+/* -------------------------------------------------------------------------- */
+
+class DashboardShell extends StatefulWidget {
+  const DashboardShell({super.key});
+
+  @override
+  State<DashboardShell> createState() => _DashboardShellState();
+}
+
+class _DashboardShellState extends State<DashboardShell> {
+  int selectedIndex = 0;
+
+  void onSelectPage(int index) {
+    setState(() => selectedIndex = index);
+  }
+
+  Future<void> signOut() async {
+    await FirebaseAuth.instance.signOut();
   }
 
   @override
   Widget build(BuildContext context) {
-    final dk = dateKey(selectedDate);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= 1150;
+        final isTablet = constraints.maxWidth >= 760;
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text("Crear evento (solo 1 vez)"),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: eventNameController,
-                      decoration: const InputDecoration(
-                        labelText: "Nombre del evento (ej: Sábado 8pm Virtual)",
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  DropdownButton<String>(
-                    value: eventType,
-                    items: const [
-                      DropdownMenuItem(
-                        value: "virtual",
-                        child: Text("virtual"),
-                      ),
-                      DropdownMenuItem(
-                        value: "presencial",
-                        child: Text("presencial"),
-                      ),
-                    ],
-                    onChanged: (v) =>
-                        setState(() => eventType = v ?? "virtual"),
-                  ),
-                  const SizedBox(width: 10),
-                  ElevatedButton(
-                    onPressed: createEvent,
-                    child: const Text("Crear"),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            children: [
-              StreamBuilder<QuerySnapshot>(
-                stream: db.collection("leaders").snapshots(),
-                builder: (context, snap) {
-                  if (!snap.hasData) return const LinearProgressIndicator();
-                  final leaders = snap.data!.docs;
-                  if (leaders.isEmpty) {
-                    return const Text("Crea líderes primero.");
-                  }
-                  selectedLeaderId ??= leaders.first.id;
-
-                  return Row(
-                    children: [
-                      const Text("Líder: "),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: DropdownButton<String>(
-                          isExpanded: true,
-                          value: selectedLeaderId,
-                          items: leaders.map((d) {
-                            final name =
-                                ((d.data() as Map<String, dynamic>)["name"] ??
-                                        "")
-                                    .toString();
-                            return DropdownMenuItem(
-                              value: d.id,
-                              child: Text(name.isEmpty ? d.id : name),
-                            );
-                          }).toList(),
-                          onChanged: (v) async {
-                            setState(() {
-                              selectedLeaderId = v;
-                            });
-                            await loadYouthsForLeader();
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      OutlinedButton(
-                        onPressed: loadYouthsForLeader,
-                        child: const Text("Cargar jóvenes"),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
-              StreamBuilder<QuerySnapshot>(
-                stream: db
-                    .collection("events")
-                    .where("active", isEqualTo: true)
-                    .snapshots(),
-                builder: (context, snap) {
-                  if (!snap.hasData) return const LinearProgressIndicator();
-                  final events = snap.data!.docs;
-                  if (events.isEmpty) {
-                    return const Text("Crea al menos 1 evento.");
-                  }
-                  selectedEventId ??= events.first.id;
-
-                  return Row(
-                    children: [
-                      const Text("Evento: "),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: DropdownButton<String>(
-                          isExpanded: true,
-                          value: selectedEventId,
-                          items: events.map((d) {
-                            final data = d.data() as Map<String, dynamic>;
-                            final name = (data["name"] ?? "").toString();
-                            final type = (data["type"] ?? "").toString();
-                            return DropdownMenuItem(
-                              value: d.id,
-                              child: Text("$name ($type)"),
-                            );
-                          }).toList(),
-                          onChanged: (v) => setState(() => selectedEventId = v),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      OutlinedButton(
-                        onPressed: pickDate,
-                        child: Text("Fecha: $dk"),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        Expanded(
-          child: presentMap.isEmpty
-              ? const Center(
-                  child: Text("Pulsa 'Cargar jóvenes' para marcar asistencia."),
-                )
-              : FutureBuilder<QuerySnapshot>(
-                  future: db
-                      .collection("youths")
-                      .where("leaderId", isEqualTo: selectedLeaderId)
-                      .get(),
-                  builder: (context, snap) {
-                    if (!snap.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final youths = snap.data!.docs;
-
-                    return ListView.builder(
-                      itemCount: youths.length,
-                      itemBuilder: (context, i) {
-                        final d = youths[i];
-                        final data = d.data() as Map<String, dynamic>;
-                        final name = (data["fullName"] ?? "").toString();
-
-                        final present = presentMap[d.id] ?? false;
-
-                        return CheckboxListTile(
-                          title: Text(name.isEmpty ? d.id : name),
-                          value: present,
-                          onChanged: (v) {
-                            setState(() {
-                              presentMap[d.id] = v ?? false;
-                            });
-                          },
-                        );
-                      },
-                    );
+        return Scaffold(
+          drawer: isDesktop
+              ? null
+              : AppDrawer(
+                  selectedIndex: selectedIndex,
+                  onSelect: (index) {
+                    Navigator.of(context).pop();
+                    onSelectPage(index);
                   },
+                  onLogout: signOut,
                 ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.save),
-              label: const Text("Guardar asistencia"),
-              onPressed: saveAttendance,
+          floatingActionButton: selectedIndex == 0
+              ? FloatingActionButton.extended(
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (_) => const AddLeaderDialog(),
+                  ),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Agregar líder'),
+                )
+              : selectedIndex == 1
+              ? FloatingActionButton.extended(
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (_) => const AddRegistroDialog(),
+                  ),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Agregar registro'),
+                )
+              : selectedIndex == 2
+              ? FloatingActionButton.extended(
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (_) => const AddReporteDialog(),
+                  ),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Agregar reporte'),
+                )
+              : null,
+          body: SafeArea(
+            child: Row(
+              children: [
+                if (isDesktop)
+                  DesktopRail(
+                    selectedIndex: selectedIndex,
+                    onSelect: onSelectPage,
+                    onLogout: signOut,
+                  ),
+                Expanded(
+                  child: IndexedStack(
+                    index: selectedIndex,
+                    children: [
+                      DashboardHomePage(
+                        isDesktop: isDesktop,
+                        isTablet: isTablet,
+                      ),
+                      RegistrosPage(isDesktop: isDesktop, isTablet: isTablet),
+                      ReportesPage(isDesktop: isDesktop, isTablet: isTablet),
+                      ModulePlaceholderPage(
+                        isDesktop: isDesktop,
+                        title: 'Configuración',
+                        subtitle: 'Espacio para ajustes generales del sistema.',
+                        icon: Icons.settings_rounded,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
+        );
+      },
+    );
+  }
+}
+
+class DesktopRail extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+  final VoidCallback onLogout;
+
+  const DesktopRail({
+    super.key,
+    required this.selectedIndex,
+    required this.onSelect,
+    required this.onLogout,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final extend = MediaQuery.of(context).size.width >= 1400;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(right: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
+      child: NavigationRail(
+        extended: extend,
+        backgroundColor: Colors.white,
+        selectedIndex: selectedIndex,
+        onDestinationSelected: onSelect,
+        minWidth: 76,
+        minExtendedWidth: 230,
+        groupAlignment: -0.9,
+        indicatorColor: const Color(0xFFDCE7FF),
+        selectedIconTheme: const IconThemeData(
+          color: Color(0xFF1D4ED8),
+          size: 24,
         ),
-      ],
+        unselectedIconTheme: const IconThemeData(
+          color: Color(0xFF64748B),
+          size: 22,
+        ),
+        leading: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 20, 12, 28),
+          child: extend
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(Icons.groups_2, color: Colors.white),
+                    ),
+                    const SizedBox(width: 12),
+                    const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'JV Líderes',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Admin panel',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                )
+              : Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.groups_2, color: Colors.white),
+                ),
+        ),
+        trailing: Padding(
+          padding: const EdgeInsets.all(12),
+          child: extend
+              ? OutlinedButton.icon(
+                  onPressed: onLogout,
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('Salir'),
+                )
+              : IconButton(
+                  onPressed: onLogout,
+                  icon: const Icon(Icons.logout_rounded),
+                ),
+        ),
+        destinations: _navItems
+            .map(
+              (item) => NavigationRailDestination(
+                icon: Icon(item.icon),
+                label: Text(item.label),
+              ),
+            )
+            .toList(),
+      ),
     );
   }
 }
 
-class ReportsPage extends StatefulWidget {
-  const ReportsPage({super.key});
+class AppDrawer extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+  final VoidCallback onLogout;
+
+  const AppDrawer({
+    super.key,
+    required this.selectedIndex,
+    required this.onSelect,
+    required this.onLogout,
+  });
 
   @override
-  State<ReportsPage> createState() => _ReportsPageState();
-}
-
-class _ReportsPageState extends State<ReportsPage> {
-  late final FirebaseFirestore db;
-  String? selectedLeaderId;
-
-  @override
-  void initState() {
-    super.initState();
-    db = FirebaseFirestore.instanceFor(
-      app: Firebase.app(),
-      databaseId: "mora2",
+  Widget build(BuildContext context) {
+    return Drawer(
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(28)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 60, 20, 24),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+              ),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.white,
+                  child: Icon(
+                    Icons.groups_2,
+                    color: Color(0xFF1E3A8A),
+                    size: 30,
+                  ),
+                ),
+                SizedBox(height: 14),
+                Text(
+                  'JV Líderes',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Panel administrativo',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: _navItems.length,
+              itemBuilder: (context, index) {
+                final item = _navItems[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: ListTile(
+                    selected: selectedIndex == index,
+                    selectedTileColor: const Color(0xFFDCE7FF),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    leading: Icon(item.icon),
+                    title: Text(item.label),
+                    onTap: () => onSelect(index),
+                  ),
+                );
+              },
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.logout_rounded),
+            title: const Text('Salir'),
+            onTap: onLogout,
+          ),
+        ],
+      ),
     );
   }
+}
 
-  Future<void> exportLeaderExcel(String leaderId) async {
-    try {
-      final leaderDoc = await db.collection("leaders").doc(leaderId).get();
-      final leaderName = (leaderDoc.data()?["name"] ?? leaderId).toString();
+/* -------------------------------------------------------------------------- */
+/*                               DASHBOARD HOME                               */
+/* -------------------------------------------------------------------------- */
 
-      final youthsSnap = await db
-          .collection("youths")
-          .where("leaderId", isEqualTo: leaderId)
-          .get();
+class DashboardHomePage extends StatefulWidget {
+  final bool isDesktop;
+  final bool isTablet;
 
-      final sessionsSnap = await db
-          .collection("attendance_sessions")
-          .where("leaderId", isEqualTo: leaderId)
-          .get();
+  const DashboardHomePage({
+    super.key,
+    required this.isDesktop,
+    required this.isTablet,
+  });
 
-      final sessionIds = sessionsSnap.docs.map((d) => d.id).toList();
+  @override
+  State<DashboardHomePage> createState() => _DashboardHomePageState();
+}
 
-      final excel = Excel.createExcel();
-      if (excel.tables.containsKey('Sheet1')) {
-        excel.delete('Sheet1');
-      }
+class _DashboardHomePageState extends State<DashboardHomePage> {
+  final searchCtrl = TextEditingController();
+  String selectedZone = 'Todas';
+  String selectedStatus = 'Todos';
 
-      final sheetYouth = excel["Jovenes"];
-      sheetYouth.appendRow([
-        TextCellValue("Nombre"),
-        TextCellValue("Teléfono"),
-        TextCellValue("Nivel espiritual"),
-        TextCellValue("Asistencias"),
-        TextCellValue("Total sesiones"),
-        TextCellValue("%"),
-      ]);
+  @override
+  void dispose() {
+    searchCtrl.dispose();
+    super.dispose();
+  }
 
-      for (final y in youthsSnap.docs) {
-        final data = y.data();
-        final fullName = (data["fullName"] ?? "").toString();
-        final phone = (data["phone"] ?? "").toString();
-        final level = (data["spiritualLevel"] ?? "").toString();
+  List<LeaderRecord> _applyFilters(List<LeaderRecord> leaders) {
+    final query = searchCtrl.text.trim().toLowerCase();
 
-        int present = 0;
-        int total = 0;
+    return leaders.where((leader) {
+      final matchesSearch =
+          query.isEmpty ||
+          leader.name.toLowerCase().contains(query) ||
+          leader.email.toLowerCase().contains(query) ||
+          leader.zone.toLowerCase().contains(query) ||
+          leader.status.toLowerCase().contains(query);
 
-        if (sessionIds.isNotEmpty) {
-          for (final sId in sessionIds) {
-            final markSnap = await db
-                .collection("attendance_marks")
-                .where("sessionId", isEqualTo: sId)
-                .where("youthId", isEqualTo: y.id)
-                .limit(1)
-                .get();
+      final matchesZone =
+          selectedZone == 'Todas' || leader.zone == selectedZone;
+      final matchesStatus =
+          selectedStatus == 'Todos' || leader.status == selectedStatus;
 
-            if (markSnap.docs.isNotEmpty) {
-              total += 1;
-              final mark = markSnap.docs.first.data();
-              if (mark["present"] == true) present += 1;
-            }
-          }
+      return matchesSearch && matchesZone && matchesStatus;
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<LeaderRecord>>(
+      stream: FirestoreService.leadersStream(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Error cargando datos: ${snapshot.error}'));
         }
 
-        final percent = total == 0 ? 0 : ((present / total) * 100).round();
-
-        sheetYouth.appendRow([
-          TextCellValue(fullName),
-          TextCellValue(phone),
-          TextCellValue(level),
-          IntCellValue(present),
-          IntCellValue(total),
-          IntCellValue(percent),
-        ]);
-      }
-
-      final sheetSessions = excel["Sesiones"];
-      sheetSessions.appendRow([
-        TextCellValue("Evento"),
-        TextCellValue("Fecha"),
-        TextCellValue("Presentes"),
-        TextCellValue("Total"),
-      ]);
-
-      for (final s in sessionsSnap.docs) {
-        final data = s.data();
-        final eventName = (data["eventName"] ?? "").toString();
-        final dateKey = (data["dateKey"] ?? "").toString();
-
-        final totalMarks = await db
-            .collection("attendance_marks")
-            .where("sessionId", isEqualTo: s.id)
-            .get();
-
-        final presentMarks = await db
-            .collection("attendance_marks")
-            .where("sessionId", isEqualTo: s.id)
-            .where("present", isEqualTo: true)
-            .get();
-
-        sheetSessions.appendRow([
-          TextCellValue(eventName),
-          TextCellValue(dateKey),
-          IntCellValue(presentMarks.docs.length),
-          IntCellValue(totalMarks.docs.length),
-        ]);
-      }
-
-      final bytes = excel.encode();
-      if (bytes == null) throw Exception("No se pudo generar el archivo.");
-
-      final fileName = "reporte_lider_${leaderName.replaceAll(' ', '_')}.xlsx";
-
-      await FileSaver.instance.saveFile(
-        name: fileName.replaceAll(".xlsx", ""),
-        bytes: Uint8List.fromList(bytes),
-        ext: "xlsx",
-        mimeType: MimeType.microsoftExcel,
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("✅ Excel del líder descargado: $fileName")),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("❌ Error exportando líder: $e")));
-      }
-    }
-  }
-
-  Future<void> exportGlobalExcel() async {
-    try {
-      final leadersSnap = await db.collection("leaders").get();
-      final youthsSnap = await db.collection("youths").get();
-      final sessionsSnap = await db
-          .collection("attendance_sessions")
-          .orderBy("createdAt", descending: true)
-          .get();
-
-      final leaderNameById = <String, String>{};
-      for (final l in leadersSnap.docs) {
-        final data = l.data();
-        leaderNameById[l.id] = (data["name"] ?? l.id).toString();
-      }
-
-      final excel = Excel.createExcel();
-      if (excel.tables.containsKey('Sheet1')) {
-        excel.delete('Sheet1');
-      }
-
-      final shSessions = excel["Sesiones"];
-      shSessions.appendRow([
-        TextCellValue("Fecha"),
-        TextCellValue("Evento"),
-        TextCellValue("Líder"),
-        TextCellValue("Presentes"),
-        TextCellValue("Total"),
-        TextCellValue("sessionId"),
-      ]);
-
-      for (final s in sessionsSnap.docs) {
-        final data = s.data();
-        final dateKey = (data["dateKey"] ?? "").toString();
-        final eventName = (data["eventName"] ?? "").toString();
-        final leaderId = (data["leaderId"] ?? "").toString();
-        final leaderName = leaderNameById[leaderId] ?? leaderId;
-
-        final totalMarks = await db
-            .collection("attendance_marks")
-            .where("sessionId", isEqualTo: s.id)
-            .get();
-
-        final presentMarks = await db
-            .collection("attendance_marks")
-            .where("sessionId", isEqualTo: s.id)
-            .where("present", isEqualTo: true)
-            .get();
-
-        shSessions.appendRow([
-          TextCellValue(dateKey),
-          TextCellValue(eventName),
-          TextCellValue(leaderName),
-          IntCellValue(presentMarks.docs.length),
-          IntCellValue(totalMarks.docs.length),
-          TextCellValue(s.id),
-        ]);
-      }
-
-      final shYouths = excel["Jovenes"];
-      shYouths.appendRow([
-        TextCellValue("Líder"),
-        TextCellValue("Joven"),
-        TextCellValue("Nivel espiritual"),
-        TextCellValue("Teléfono"),
-        TextCellValue("youthId"),
-      ]);
-
-      for (final y in youthsSnap.docs) {
-        final data = y.data();
-        final leaderId = (data["leaderId"] ?? "").toString();
-        final leaderName = leaderNameById[leaderId] ?? leaderId;
-
-        shYouths.appendRow([
-          TextCellValue(leaderName),
-          TextCellValue((data["fullName"] ?? "").toString()),
-          TextCellValue((data["spiritualLevel"] ?? "").toString()),
-          TextCellValue((data["phone"] ?? "").toString()),
-          TextCellValue(y.id),
-        ]);
-      }
-
-      final bytes = excel.encode();
-      if (bytes == null) throw Exception("No se pudo generar el archivo.");
-
-      const fileName = "reporte_general_grupo_juvenil.xlsx";
-
-      await FileSaver.instance.saveFile(
-        name: fileName.replaceAll(".xlsx", ""),
-        bytes: Uint8List.fromList(bytes),
-        ext: "xlsx",
-        mimeType: MimeType.microsoftExcel,
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "✅ Excel general descargado: reporte_general_grupo_juvenil.xlsx",
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Error exportando general: $e")),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.download),
-                  label: const Text("Excel del líder"),
-                  onPressed: selectedLeaderId == null
-                      ? null
-                      : () => exportLeaderExcel(selectedLeaderId!),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.download),
-                  label: const Text("Excel general"),
-                  onPressed: exportGlobalExcel,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: StreamBuilder<QuerySnapshot>(
-            stream: db
-                .collection("leaders")
-                .orderBy("createdAt", descending: true)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const LinearProgressIndicator();
-              }
-              final leaders = snapshot.data!.docs;
-
-              if (leaders.isEmpty) {
-                return const Text(
-                  "Primero registra al menos 1 líder en la pestaña Líderes.",
-                );
-              }
-
-              selectedLeaderId ??= leaders.first.id;
-
-              return Row(
-                children: [
-                  const Text("Líder: "),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: DropdownButton<String>(
-                      isExpanded: true,
-                      value: selectedLeaderId,
-                      items: leaders.map((d) {
-                        final data = d.data() as Map<String, dynamic>;
-                        final name = (data["name"] ?? "").toString();
-                        return DropdownMenuItem(
-                          value: d.id,
-                          child: Text(name.isEmpty ? d.id : name),
-                        );
-                      }).toList(),
-                      onChanged: (v) => setState(() => selectedLeaderId = v),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: ListView(
-            children: [
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  "1) Sesiones registradas (recientes)",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-              _RecentSessionsReport(db: db),
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  "2) Asistencia por joven (según líder)",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-              if (selectedLeaderId != null)
-                _YouthAttendanceReport(db: db, leaderId: selectedLeaderId!),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _RecentSessionsReport extends StatelessWidget {
-  const _RecentSessionsReport({required this.db});
-
-  final FirebaseFirestore db;
-
-  Future<int> _countPresents(String sessionId) async {
-    final snap = await db
-        .collection("attendance_marks")
-        .where("sessionId", isEqualTo: sessionId)
-        .where("present", isEqualTo: true)
-        .get();
-    return snap.docs.length;
-  }
-
-  Future<int> _countTotalMarks(String sessionId) async {
-    final snap = await db
-        .collection("attendance_marks")
-        .where("sessionId", isEqualTo: sessionId)
-        .get();
-    return snap.docs.length;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: db
-          .collection("attendance_sessions")
-          .orderBy("createdAt", descending: true)
-          .limit(20)
-          .snapshots(),
-      builder: (context, snap) {
-        if (snap.hasError) return Text("Error: ${snap.error}");
-        if (!snap.hasData) {
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final sessions = snap.data!.docs;
-        if (sessions.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text("Aún no hay sesiones registradas."),
-          );
-        }
+        final leaders = snapshot.data!;
+        final filteredLeaders = _applyFilters(leaders);
 
-        return Column(
-          children: sessions.map((s) {
-            final data = s.data() as Map<String, dynamic>;
-            final dateKey = (data["dateKey"] ?? "").toString();
-            final eventName = (data["eventName"] ?? "").toString();
-            final leaderId = (data["leaderId"] ?? "").toString();
+        final activeCount = leaders
+            .where((e) => e.status.toLowerCase() == 'activo')
+            .length;
+        final pendingCount = leaders
+            .where((e) => e.status.toLowerCase() == 'pendiente')
+            .length;
+        final reviewCount = leaders
+            .where((e) => e.status.toLowerCase().contains('revisión'))
+            .length;
+        final totalReports = leaders.fold<int>(0, (sum, e) => sum + e.reports);
 
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: ListTile(
-                title: Text("$eventName — $dateKey"),
-                subtitle: Text("leaderId: $leaderId\nsessionId: ${s.id}"),
-                trailing: FutureBuilder<List<int>>(
-                  future: Future.wait([
-                    _countPresents(s.id),
-                    _countTotalMarks(s.id),
-                  ]),
-                  builder: (context, countsSnap) {
-                    if (!countsSnap.hasData) {
-                      return const SizedBox(
-                        width: 30,
-                        height: 30,
-                        child: CircularProgressIndicator(),
-                      );
-                    }
-                    final presents = countsSnap.data![0];
-                    final total = countsSnap.data![1];
-                    return Text("$presents/$total");
-                  },
-                ),
+        final stats = [
+          DashboardStat(
+            title: 'Líderes activos',
+            value: '$activeCount',
+            change: '${leaders.length} en total',
+            icon: Icons.groups_2_outlined,
+            color: const Color(0xFF2563EB),
+          ),
+          DashboardStat(
+            title: 'Reportes',
+            value: '$totalReports',
+            change: 'acumulados',
+            icon: Icons.insert_chart_outlined_rounded,
+            color: const Color(0xFF059669),
+          ),
+          DashboardStat(
+            title: 'Pendientes',
+            value: '$pendingCount',
+            change: 'por revisar',
+            icon: Icons.schedule_outlined,
+            color: const Color(0xFFF59E0B),
+          ),
+          DashboardStat(
+            title: 'En revisión',
+            value: '$reviewCount',
+            change: 'estado actual',
+            icon: Icons.task_alt_rounded,
+            color: const Color(0xFF7C3AED),
+          ),
+        ];
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(widget.isDesktop ? 28 : 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PageHeader(
+                isDesktop: widget.isDesktop,
+                title: 'Dashboard General',
+                subtitle: 'Resumen visual de líderes, reportes y seguimiento.',
               ),
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
-}
-
-class _YouthAttendanceReport extends StatelessWidget {
-  const _YouthAttendanceReport({required this.db, required this.leaderId});
-
-  final FirebaseFirestore db;
-  final String leaderId;
-
-  Future<List<Map<String, dynamic>>> _buildReport() async {
-    final youthsSnap = await db
-        .collection("youths")
-        .where("leaderId", isEqualTo: leaderId)
-        .get();
-
-    final youths = youthsSnap.docs;
-
-    final sessionsSnap = await db
-        .collection("attendance_sessions")
-        .where("leaderId", isEqualTo: leaderId)
-        .get();
-
-    final sessionIds = sessionsSnap.docs.map((d) => d.id).toList();
-
-    if (sessionIds.isEmpty) {
-      return youths.map((y) {
-        final data = y.data();
-        return {
-          "youthId": y.id,
-          "fullName": (data["fullName"] ?? "").toString(),
-          "present": 0,
-          "total": 0,
-          "percent": 0.0,
-        };
-      }).toList();
-    }
-
-    final List<Map<String, dynamic>> result = [];
-
-    for (final y in youths) {
-      final data = y.data();
-      final fullName = (data["fullName"] ?? "").toString();
-
-      final idsForWhereIn = sessionIds.length > 10
-          ? sessionIds.sublist(0, 10)
-          : sessionIds;
-
-      final totalMarksSnap = await db
-          .collection("attendance_marks")
-          .where("youthId", isEqualTo: y.id)
-          .where("sessionId", whereIn: idsForWhereIn)
-          .get();
-
-      final presentMarksSnap = await db
-          .collection("attendance_marks")
-          .where("youthId", isEqualTo: y.id)
-          .where("present", isEqualTo: true)
-          .where("sessionId", whereIn: idsForWhereIn)
-          .get();
-
-      final total = totalMarksSnap.docs.length;
-      final present = presentMarksSnap.docs.length;
-      final percent = total == 0 ? 0.0 : (present / total) * 100.0;
-
-      result.add({
-        "youthId": y.id,
-        "fullName": fullName.isEmpty ? y.id : fullName,
-        "present": present,
-        "total": total,
-        "percent": percent,
-      });
-    }
-
-    result.sort(
-      (a, b) => (b["percent"] as double).compareTo(a["percent"] as double),
-    );
-    return result;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _buildReport(),
-      builder: (context, snap) {
-        if (snap.hasError) {
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text("Error: ${snap.error}"),
-          );
-        }
-        if (!snap.hasData) {
-          return const Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final rows = snap.data!;
-        if (rows.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text("No hay jóvenes para este líder."),
-          );
-        }
-
-        return Column(
-          children: rows.map((r) {
-            final name = r["fullName"].toString();
-            final present = r["present"] as int;
-            final total = r["total"] as int;
-            final percent = (r["percent"] as double).toStringAsFixed(0);
-
-            return ListTile(
-              title: Text(name),
-              subtitle: Text("Asistencias: $present de $total"),
-              trailing: Text("$percent%"),
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
-}
-
-class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key});
-
-  @override
-  State<DashboardPage> createState() => _DashboardPageState();
-}
-
-class _DashboardPageState extends State<DashboardPage> {
-  late final FirebaseFirestore db;
-  DashboardRange selectedRange = DashboardRange.all;
-
-  @override
-  void initState() {
-    super.initState();
-    db = FirebaseFirestore.instanceFor(
-      app: Firebase.app(),
-      databaseId: "mora2",
-    );
-  }
-
-  DateTime _now() => DateTime.now();
-
-  bool _isInRange(DateTime date) {
-    final now = _now();
-
-    switch (selectedRange) {
-      case DashboardRange.all:
-        return true;
-      case DashboardRange.last30Days:
-        final limit = now.subtract(const Duration(days: 30));
-        return !date.isBefore(limit);
-      case DashboardRange.thisMonth:
-        return date.year == now.year && date.month == now.month;
-      case DashboardRange.thisYear:
-        return date.year == now.year;
-    }
-  }
-
-  DateTime? _parseDateKey(String dateKey) {
-    try {
-      final parts = dateKey.split("-");
-      if (parts.length != 3) return null;
-      return DateTime(
-        int.parse(parts[0]),
-        int.parse(parts[1]),
-        int.parse(parts[2]),
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<Map<String, int>> getSummaryCounts() async {
-    final leaders = await db.collection("leaders").get();
-    final youths = await db.collection("youths").get();
-    final events = await db.collection("events").get();
-    final sessions = await db.collection("attendance_sessions").get();
-
-    int filteredSessions = 0;
-
-    for (final s in sessions.docs) {
-      final data = s.data();
-      final date = _parseDateKey((data["dateKey"] ?? "").toString());
-      if (date != null && _isInRange(date)) {
-        filteredSessions++;
-      }
-    }
-
-    return {
-      "leaders": leaders.docs.length,
-      "youths": youths.docs.length,
-      "events": events.docs.length,
-      "sessions": filteredSessions,
-    };
-  }
-
-  Future<double> getAverageAttendance() async {
-    final sessionsSnap = await db.collection("attendance_sessions").get();
-
-    int totalPresent = 0;
-    int totalMarks = 0;
-
-    for (final session in sessionsSnap.docs) {
-      final data = session.data();
-      final date = _parseDateKey((data["dateKey"] ?? "").toString());
-
-      if (date == null || !_isInRange(date)) continue;
-
-      final marksSnap = await db
-          .collection("attendance_marks")
-          .where("sessionId", isEqualTo: session.id)
-          .get();
-
-      totalMarks += marksSnap.docs.length;
-
-      for (final mark in marksSnap.docs) {
-        final markData = mark.data();
-        if (markData["present"] == true) {
-          totalPresent += 1;
-        }
-      }
-    }
-
-    if (totalMarks == 0) return 0;
-    return (totalPresent / totalMarks) * 100;
-  }
-
-  Future<List<Map<String, dynamic>>> getAttendanceByLeader() async {
-    final leadersSnap = await db.collection("leaders").get();
-    final sessionsSnap = await db.collection("attendance_sessions").get();
-
-    final Map<String, String> leaderNames = {};
-    for (final doc in leadersSnap.docs) {
-      final data = doc.data();
-      leaderNames[doc.id] = (data["name"] ?? doc.id).toString();
-    }
-
-    final Map<String, int> counts = {};
-
-    for (final session in sessionsSnap.docs) {
-      final data = session.data();
-      final leaderId = (data["leaderId"] ?? "").toString();
-      final date = _parseDateKey((data["dateKey"] ?? "").toString());
-
-      if (date == null || !_isInRange(date)) continue;
-
-      final presentSnap = await db
-          .collection("attendance_marks")
-          .where("sessionId", isEqualTo: session.id)
-          .where("present", isEqualTo: true)
-          .get();
-
-      counts[leaderId] = (counts[leaderId] ?? 0) + presentSnap.docs.length;
-    }
-
-    return counts.entries.map((e) {
-      return {
-        "label": leaderNames[e.key] ?? e.key,
-        "value": e.value.toDouble(),
-      };
-    }).toList();
-  }
-
-  Future<List<Map<String, dynamic>>> getAttendanceByEvent() async {
-    final sessionsSnap = await db.collection("attendance_sessions").get();
-    final Map<String, int> counts = {};
-
-    for (final session in sessionsSnap.docs) {
-      final data = session.data();
-      final eventName = (data["eventName"] ?? "Sin nombre").toString();
-      final date = _parseDateKey((data["dateKey"] ?? "").toString());
-
-      if (date == null || !_isInRange(date)) continue;
-
-      final presentSnap = await db
-          .collection("attendance_marks")
-          .where("sessionId", isEqualTo: session.id)
-          .where("present", isEqualTo: true)
-          .get();
-
-      counts[eventName] = (counts[eventName] ?? 0) + presentSnap.docs.length;
-    }
-
-    return counts.entries.map((e) {
-      return {"label": e.key, "value": e.value.toDouble()};
-    }).toList();
-  }
-
-  Future<List<Map<String, dynamic>>> getAttendanceByYouth() async {
-    final youthsSnap = await db.collection("youths").get();
-    final sessionsSnap = await db.collection("attendance_sessions").get();
-
-    final validSessionIds = <String>{};
-
-    for (final session in sessionsSnap.docs) {
-      final data = session.data();
-      final date = _parseDateKey((data["dateKey"] ?? "").toString());
-      if (date != null && _isInRange(date)) {
-        validSessionIds.add(session.id);
-      }
-    }
-
-    final Map<String, int> counts = {};
-
-    for (final youth in youthsSnap.docs) {
-      final data = youth.data();
-      final fullName = (data["fullName"] ?? youth.id).toString();
-
-      final marksSnap = await db
-          .collection("attendance_marks")
-          .where("youthId", isEqualTo: youth.id)
-          .where("present", isEqualTo: true)
-          .get();
-
-      int presentCount = 0;
-      for (final mark in marksSnap.docs) {
-        final markData = mark.data();
-        final sessionId = (markData["sessionId"] ?? "").toString();
-        if (validSessionIds.contains(sessionId)) {
-          presentCount++;
-        }
-      }
-
-      counts[fullName] = presentCount;
-    }
-
-    final list = counts.entries.map((e) {
-      return {"label": e.key, "value": e.value.toDouble()};
-    }).toList();
-
-    list.sort((a, b) => (b["value"] as double).compareTo(a["value"] as double));
-    return list.take(10).toList();
-  }
-
-  Future<List<Map<String, dynamic>>> getAttendanceByMonth() async {
-    final sessionsSnap = await db.collection("attendance_sessions").get();
-    final Map<String, int> counts = {};
-
-    for (final session in sessionsSnap.docs) {
-      final data = session.data();
-      final dateKey = (data["dateKey"] ?? "").toString();
-      final date = _parseDateKey(dateKey);
-
-      if (date == null || !_isInRange(date)) continue;
-
-      final monthKey = dateKey.substring(0, 7);
-
-      final presentSnap = await db
-          .collection("attendance_marks")
-          .where("sessionId", isEqualTo: session.id)
-          .where("present", isEqualTo: true)
-          .get();
-
-      counts[monthKey] = (counts[monthKey] ?? 0) + presentSnap.docs.length;
-    }
-
-    final list = counts.entries.map((e) {
-      return {"label": e.key, "value": e.value.toDouble()};
-    }).toList();
-
-    list.sort((a, b) => a["label"].toString().compareTo(b["label"].toString()));
-    return list;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                const Text("Rango: "),
-                const SizedBox(width: 12),
-                DropdownButton<DashboardRange>(
-                  value: selectedRange,
-                  items: const [
-                    DropdownMenuItem(
-                      value: DashboardRange.all,
-                      child: Text("Todo"),
+              const SizedBox(height: 20),
+              HeroBanner(
+                isTablet: widget.isTablet,
+                totalLeaders: leaders.length,
+                totalReports: totalReports,
+                completionPercent: leaders.isEmpty
+                    ? 0
+                    : (activeCount / leaders.length).clamp(0, 1),
+              ),
+              const SizedBox(height: 20),
+              GridView.builder(
+                itemCount: stats.length,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: widget.isDesktop
+                      ? 4
+                      : (widget.isTablet ? 2 : 1),
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: widget.isDesktop
+                      ? 2.15
+                      : (widget.isTablet ? 2.25 : 2.5),
+                ),
+                itemBuilder: (context, index) {
+                  return StatCard(stat: stats[index]);
+                },
+              ),
+              const SizedBox(height: 20),
+              DashboardFiltersCard(
+                isTablet: widget.isTablet,
+                leadersCount: filteredLeaders.length,
+                searchCtrl: searchCtrl,
+                selectedZone: selectedZone,
+                selectedStatus: selectedStatus,
+                onSearchChanged: (_) => setState(() {}),
+                onZoneChanged: (value) => setState(() => selectedZone = value!),
+                onStatusChanged: (value) =>
+                    setState(() => selectedStatus = value!),
+                onClear: () {
+                  setState(() {
+                    searchCtrl.clear();
+                    selectedZone = 'Todas';
+                    selectedStatus = 'Todos';
+                  });
+                },
+              ),
+              const SizedBox(height: 20),
+              if (widget.isDesktop)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        children: [
+                          DashboardChartsGrid(isWide: true),
+                          const SizedBox(height: 20),
+                          LeadersSection(
+                            tableView: true,
+                            leaders: filteredLeaders,
+                          ),
+                        ],
+                      ),
                     ),
-                    DropdownMenuItem(
-                      value: DashboardRange.last30Days,
-                      child: Text("Últimos 30 días"),
-                    ),
-                    DropdownMenuItem(
-                      value: DashboardRange.thisMonth,
-                      child: Text("Este mes"),
-                    ),
-                    DropdownMenuItem(
-                      value: DashboardRange.thisYear,
-                      child: Text("Este año"),
+                    const SizedBox(width: 20),
+                    const Expanded(
+                      flex: 1,
+                      child: Column(
+                        children: [
+                          ActivityCard(),
+                          SizedBox(height: 20),
+                          CompletionCard(),
+                        ],
+                      ),
                     ),
                   ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() {
-                      selectedRange = value;
-                    });
-                  },
+                )
+              else
+                Column(
+                  children: [
+                    DashboardChartsGrid(isWide: widget.isTablet),
+                    const SizedBox(height: 20),
+                    const ActivityCard(),
+                    const SizedBox(height: 20),
+                    const CompletionCard(),
+                    const SizedBox(height: 20),
+                    LeadersSection(
+                      tableView: widget.isTablet,
+                      leaders: filteredLeaders,
+                    ),
+                  ],
                 ),
-              ],
-            ),
+            ],
           ),
-        ),
-        const SizedBox(height: 16),
-        FutureBuilder<Map<String, int>>(
-          future: getSummaryCounts(),
-          builder: (context, snap) {
-            if (!snap.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final data = snap.data!;
-            return Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _MetricCard(
-                  title: "Líderes",
-                  value: "${data["leaders"]}",
-                  icon: Icons.people,
-                ),
-                _MetricCard(
-                  title: "Jóvenes",
-                  value: "${data["youths"]}",
-                  icon: Icons.groups,
-                ),
-                _MetricCard(
-                  title: "Eventos",
-                  value: "${data["events"]}",
-                  icon: Icons.event,
-                ),
-                _MetricCard(
-                  title: "Sesiones",
-                  value: "${data["sessions"]}",
-                  icon: Icons.checklist,
-                ),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: 16),
-        FutureBuilder<double>(
-          future: getAverageAttendance(),
-          builder: (context, snap) {
-            if (!snap.hasData) return const SizedBox();
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  "Asistencia promedio general: ${snap.data!.toStringAsFixed(0)}%",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 24),
-        const Padding(
-          padding: EdgeInsets.only(bottom: 8),
-          child: Text(
-            "Asistencia por líder",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-        ),
-        FutureBuilder<List<Map<String, dynamic>>>(
-          future: getAttendanceByLeader(),
-          builder: (context, snap) {
-            if (!snap.hasData) {
-              return const SizedBox(
-                height: 320,
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            return SizedBox(
-              height: 320,
-              child: AttendanceBarChart(data: snap.data!),
-            );
-          },
-        ),
-        const SizedBox(height: 24),
-        const Padding(
-          padding: EdgeInsets.only(bottom: 8),
-          child: Text(
-            "Distribución de asistencia por líder",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-        ),
-        FutureBuilder<List<Map<String, dynamic>>>(
-          future: getAttendanceByLeader(),
-          builder: (context, snap) {
-            if (!snap.hasData) {
-              return const SizedBox(
-                height: 320,
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            return SizedBox(
-              height: 320,
-              child: AttendancePieChart(data: snap.data!),
-            );
-          },
-        ),
-        const SizedBox(height: 24),
-        const Padding(
-          padding: EdgeInsets.only(bottom: 8),
-          child: Text(
-            "Asistencia por evento",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-        ),
-        FutureBuilder<List<Map<String, dynamic>>>(
-          future: getAttendanceByEvent(),
-          builder: (context, snap) {
-            if (!snap.hasData) {
-              return const SizedBox(
-                height: 320,
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            return SizedBox(
-              height: 320,
-              child: AttendanceBarChart(data: snap.data!),
-            );
-          },
-        ),
-        const SizedBox(height: 24),
-        const Padding(
-          padding: EdgeInsets.only(bottom: 8),
-          child: Text(
-            "Asistencia por mes",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-        ),
-        FutureBuilder<List<Map<String, dynamic>>>(
-          future: getAttendanceByMonth(),
-          builder: (context, snap) {
-            if (!snap.hasData) {
-              return const SizedBox(
-                height: 320,
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            return SizedBox(
-              height: 320,
-              child: AttendanceBarChart(data: snap.data!),
-            );
-          },
-        ),
-        const SizedBox(height: 24),
-        const Padding(
-          padding: EdgeInsets.only(bottom: 8),
-          child: Text(
-            "Top 10 jóvenes con más asistencias",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-        ),
-        FutureBuilder<List<Map<String, dynamic>>>(
-          future: getAttendanceByYouth(),
-          builder: (context, snap) {
-            if (!snap.hasData) {
-              return const SizedBox(
-                height: 340,
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            return SizedBox(
-              height: 340,
-              child: AttendanceBarChart(data: snap.data!),
-            );
-          },
-        ),
-      ],
+        );
+      },
     );
   }
 }
 
-class _MetricCard extends StatelessWidget {
+/* -------------------------------------------------------------------------- */
+/*                                 REGISTROS                                  */
+/* -------------------------------------------------------------------------- */
+
+class RegistrosPage extends StatefulWidget {
+  final bool isDesktop;
+  final bool isTablet;
+
+  const RegistrosPage({
+    super.key,
+    required this.isDesktop,
+    required this.isTablet,
+  });
+
+  @override
+  State<RegistrosPage> createState() => _RegistrosPageState();
+}
+
+class _RegistrosPageState extends State<RegistrosPage> {
+  final searchCtrl = TextEditingController();
+  String selectedZone = 'Todas';
+  String selectedStatus = 'Todos';
+  String selectedType = 'Todos';
+
+  @override
+  void dispose() {
+    searchCtrl.dispose();
+    super.dispose();
+  }
+
+  String _formatDate(DateTime? dt) {
+    if (dt == null) return 'Sin fecha';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
+  List<RegistroRecord> _applyFilters(List<RegistroRecord> registros) {
+    final query = searchCtrl.text.trim().toLowerCase();
+
+    return registros.where((r) {
+      final matchesSearch =
+          query.isEmpty ||
+          r.leaderName.toLowerCase().contains(query) ||
+          r.zone.toLowerCase().contains(query) ||
+          r.type.toLowerCase().contains(query) ||
+          r.description.toLowerCase().contains(query) ||
+          r.status.toLowerCase().contains(query);
+
+      final matchesZone = selectedZone == 'Todas' || r.zone == selectedZone;
+      final matchesStatus =
+          selectedStatus == 'Todos' || r.status == selectedStatus;
+      final matchesType = selectedType == 'Todos' || r.type == selectedType;
+
+      return matchesSearch && matchesZone && matchesStatus && matchesType;
+    }).toList();
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    RegistroRecord registro,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Eliminar registro'),
+        content: Text(
+          '¿Seguro que deseas eliminar el registro de ${registro.leaderName}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await FirestoreService.deleteRegistro(registroId: registro.id);
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Registro eliminado correctamente')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al eliminar registro: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<RegistroRecord>>(
+      stream: FirestoreService.registrosStream(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Error cargando registros: ${snapshot.error}'),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final registros = _applyFilters(snapshot.data!);
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(widget.isDesktop ? 28 : 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PageHeader(
+                isDesktop: widget.isDesktop,
+                title: 'Registros',
+                subtitle: 'Colección real conectada a Firestore.',
+              ),
+              const SizedBox(height: 20),
+              SurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SectionHeader(
+                      title: 'Buscar y filtrar',
+                      subtitle: 'Filtra por texto, zona, tipo y estado.',
+                      pillText: '${registros.length} resultados',
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: searchCtrl,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        hintText: 'Buscar líder, descripción, zona o estado...',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: IconButton(
+                          onPressed: () {
+                            setState(() {
+                              searchCtrl.clear();
+                              selectedZone = 'Todas';
+                              selectedStatus = 'Todos';
+                              selectedType = 'Todos';
+                            });
+                          },
+                          icon: const Icon(Icons.restart_alt_rounded),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (widget.isTablet)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: selectedZone,
+                              decoration: const InputDecoration(
+                                labelText: 'Zona',
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'Todas',
+                                  child: Text('Todas'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Zona 1',
+                                  child: Text('Zona 1'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Zona 2',
+                                  child: Text('Zona 2'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Zona 3',
+                                  child: Text('Zona 3'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Zona 4',
+                                  child: Text('Zona 4'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Zona 5',
+                                  child: Text('Zona 5'),
+                                ),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => selectedZone = v!),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: selectedType,
+                              decoration: const InputDecoration(
+                                labelText: 'Tipo',
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'Todos',
+                                  child: Text('Todos'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Asistencia',
+                                  child: Text('Asistencia'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Visita',
+                                  child: Text('Visita'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Seguimiento',
+                                  child: Text('Seguimiento'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Reunión',
+                                  child: Text('Reunión'),
+                                ),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => selectedType = v!),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: selectedStatus,
+                              decoration: const InputDecoration(
+                                labelText: 'Estado',
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'Todos',
+                                  child: Text('Todos'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Completado',
+                                  child: Text('Completado'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Pendiente',
+                                  child: Text('Pendiente'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'En revisión',
+                                  child: Text('En revisión'),
+                                ),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => selectedStatus = v!),
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      Column(
+                        children: [
+                          DropdownButtonFormField<String>(
+                            initialValue: selectedZone,
+                            decoration: const InputDecoration(
+                              labelText: 'Zona',
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'Todas',
+                                child: Text('Todas'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Zona 1',
+                                child: Text('Zona 1'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Zona 2',
+                                child: Text('Zona 2'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Zona 3',
+                                child: Text('Zona 3'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Zona 4',
+                                child: Text('Zona 4'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Zona 5',
+                                child: Text('Zona 5'),
+                              ),
+                            ],
+                            onChanged: (v) => setState(() => selectedZone = v!),
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            initialValue: selectedType,
+                            decoration: const InputDecoration(
+                              labelText: 'Tipo',
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'Todos',
+                                child: Text('Todos'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Asistencia',
+                                child: Text('Asistencia'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Visita',
+                                child: Text('Visita'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Seguimiento',
+                                child: Text('Seguimiento'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Reunión',
+                                child: Text('Reunión'),
+                              ),
+                            ],
+                            onChanged: (v) => setState(() => selectedType = v!),
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            initialValue: selectedStatus,
+                            decoration: const InputDecoration(
+                              labelText: 'Estado',
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'Todos',
+                                child: Text('Todos'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Completado',
+                                child: Text('Completado'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Pendiente',
+                                child: Text('Pendiente'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'En revisión',
+                                child: Text('En revisión'),
+                              ),
+                            ],
+                            onChanged: (v) =>
+                                setState(() => selectedStatus = v!),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              SurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SectionHeader(
+                      title: 'Listado de registros',
+                      subtitle: 'Datos en tiempo real.',
+                      pillText: '${registros.length} registros',
+                    ),
+                    const SizedBox(height: 16),
+                    if (registros.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Text('No hay registros con esos filtros.'),
+                      )
+                    else if (widget.isTablet)
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: DataTable(
+                          columns: const [
+                            DataColumn(label: Text('Líder')),
+                            DataColumn(label: Text('Zona')),
+                            DataColumn(label: Text('Tipo')),
+                            DataColumn(label: Text('Descripción')),
+                            DataColumn(label: Text('Estado')),
+                            DataColumn(label: Text('Fecha')),
+                            DataColumn(label: Text('Acciones')),
+                          ],
+                          rows: registros.map((r) {
+                            return DataRow(
+                              cells: [
+                                DataCell(Text(r.leaderName)),
+                                DataCell(Text(r.zone)),
+                                DataCell(Text(r.type)),
+                                DataCell(Text(r.description)),
+                                DataCell(StatusBadge(status: r.status)),
+                                DataCell(Text(_formatDate(r.createdAt))),
+                                DataCell(
+                                  Row(
+                                    children: [
+                                      IconButton(
+                                        tooltip: 'Editar',
+                                        icon: const Icon(
+                                          Icons.edit_rounded,
+                                          color: Color(0xFF2563EB),
+                                        ),
+                                        onPressed: () {
+                                          showDialog(
+                                            context: context,
+                                            builder: (_) =>
+                                                EditRegistroDialog(registro: r),
+                                          );
+                                        },
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Eliminar',
+                                        icon: const Icon(
+                                          Icons.delete_rounded,
+                                          color: Colors.red,
+                                        ),
+                                        onPressed: () {
+                                          _confirmDelete(context, r);
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                      )
+                    else
+                      Column(
+                        children: registros.map((r) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const CircleAvatar(
+                                        backgroundColor: Color(0xFFDCE7FF),
+                                        child: Icon(
+                                          Icons.receipt_long_rounded,
+                                          color: Color(0xFF1D4ED8),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              r.leaderName,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            Text(
+                                              r.description,
+                                              style: const TextStyle(
+                                                color: Color(0xFF64748B),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      StatusBadge(status: r.status),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Wrap(
+                                    spacing: 10,
+                                    runSpacing: 10,
+                                    children: [
+                                      InfoChip(
+                                        icon: Icons.place_outlined,
+                                        text: r.zone,
+                                      ),
+                                      InfoChip(
+                                        icon: Icons.category_outlined,
+                                        text: r.type,
+                                      ),
+                                      InfoChip(
+                                        icon: Icons.calendar_month_outlined,
+                                        text: _formatDate(r.createdAt),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      OutlinedButton.icon(
+                                        onPressed: () {
+                                          showDialog(
+                                            context: context,
+                                            builder: (_) =>
+                                                EditRegistroDialog(registro: r),
+                                          );
+                                        },
+                                        icon: const Icon(Icons.edit_rounded),
+                                        label: const Text('Editar'),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      FilledButton.icon(
+                                        onPressed: () {
+                                          _confirmDelete(context, r);
+                                        },
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: Colors.red,
+                                        ),
+                                        icon: const Icon(Icons.delete_rounded),
+                                        label: const Text('Eliminar'),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class ReportesPage extends StatefulWidget {
+  final bool isDesktop;
+  final bool isTablet;
+
+  const ReportesPage({
+    super.key,
+    required this.isDesktop,
+    required this.isTablet,
+  });
+
+  @override
+  State<ReportesPage> createState() => _ReportesPageState();
+}
+
+class _ReportesPageState extends State<ReportesPage> {
+  final searchCtrl = TextEditingController();
+  String selectedZone = 'Todas';
+  String selectedStatus = 'Todos';
+
+  @override
+  void dispose() {
+    searchCtrl.dispose();
+    super.dispose();
+  }
+
+  String _formatDate(DateTime? dt) {
+    if (dt == null) return 'Sin fecha';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
+  List<ReporteRecord> _applyFilters(List<ReporteRecord> reportes) {
+    final query = searchCtrl.text.trim().toLowerCase();
+
+    return reportes.where((r) {
+      final matchesSearch =
+          query.isEmpty ||
+          r.leaderName.toLowerCase().contains(query) ||
+          r.zone.toLowerCase().contains(query) ||
+          r.week.toLowerCase().contains(query) ||
+          r.status.toLowerCase().contains(query);
+
+      final matchesZone = selectedZone == 'Todas' || r.zone == selectedZone;
+      final matchesStatus =
+          selectedStatus == 'Todos' || r.status == selectedStatus;
+
+      return matchesSearch && matchesZone && matchesStatus;
+    }).toList();
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    ReporteRecord reporte,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Eliminar reporte'),
+        content: Text(
+          '¿Seguro que deseas eliminar el reporte de ${reporte.leaderName}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await FirestoreService.deleteReporte(
+          reporteId: reporte.id,
+          leaderId: reporte.leaderId,
+        );
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Reporte eliminado correctamente')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al eliminar reporte: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<ReporteRecord>>(
+      stream: FirestoreService.reportesStream(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Error cargando reportes: ${snapshot.error}'),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final reportes = _applyFilters(snapshot.data!);
+        final totalAttendance = reportes.fold<int>(
+          0,
+          (sum, item) => sum + item.attendance,
+        );
+        final totalNewPeople = reportes.fold<int>(
+          0,
+          (sum, item) => sum + item.newPeople,
+        );
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(widget.isDesktop ? 28 : 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PageHeader(
+                isDesktop: widget.isDesktop,
+                title: 'Reportes',
+                subtitle: 'Colección real conectada a Firestore.',
+              ),
+              const SizedBox(height: 20),
+              SurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SectionHeader(
+                      title: 'Buscar y filtrar',
+                      subtitle: 'Filtra por texto, zona y estado.',
+                      pillText: '${reportes.length} resultados',
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: searchCtrl,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        hintText: 'Buscar líder, semana, zona o estado...',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: IconButton(
+                          onPressed: () {
+                            setState(() {
+                              searchCtrl.clear();
+                              selectedZone = 'Todas';
+                              selectedStatus = 'Todos';
+                            });
+                          },
+                          icon: const Icon(Icons.restart_alt_rounded),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (widget.isTablet)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: selectedZone,
+                              decoration: const InputDecoration(
+                                labelText: 'Zona',
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'Todas',
+                                  child: Text('Todas'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Zona 1',
+                                  child: Text('Zona 1'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Zona 2',
+                                  child: Text('Zona 2'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Zona 3',
+                                  child: Text('Zona 3'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Zona 4',
+                                  child: Text('Zona 4'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Zona 5',
+                                  child: Text('Zona 5'),
+                                ),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => selectedZone = v!),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: selectedStatus,
+                              decoration: const InputDecoration(
+                                labelText: 'Estado',
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'Todos',
+                                  child: Text('Todos'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Enviado',
+                                  child: Text('Enviado'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Pendiente',
+                                  child: Text('Pendiente'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'En revisión',
+                                  child: Text('En revisión'),
+                                ),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => selectedStatus = v!),
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      Column(
+                        children: [
+                          DropdownButtonFormField<String>(
+                            initialValue: selectedZone,
+                            decoration: const InputDecoration(
+                              labelText: 'Zona',
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'Todas',
+                                child: Text('Todas'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Zona 1',
+                                child: Text('Zona 1'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Zona 2',
+                                child: Text('Zona 2'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Zona 3',
+                                child: Text('Zona 3'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Zona 4',
+                                child: Text('Zona 4'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Zona 5',
+                                child: Text('Zona 5'),
+                              ),
+                            ],
+                            onChanged: (v) => setState(() => selectedZone = v!),
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            initialValue: selectedStatus,
+                            decoration: const InputDecoration(
+                              labelText: 'Estado',
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'Todos',
+                                child: Text('Todos'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Enviado',
+                                child: Text('Enviado'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Pendiente',
+                                child: Text('Pendiente'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'En revisión',
+                                child: Text('En revisión'),
+                              ),
+                            ],
+                            onChanged: (v) =>
+                                setState(() => selectedStatus = v!),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              GridView.count(
+                crossAxisCount: widget.isDesktop ? 3 : 1,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                childAspectRatio: widget.isDesktop ? 2.4 : 2.8,
+                children: [
+                  StatCard(
+                    stat: DashboardStat(
+                      title: 'Total reportes',
+                      value: '${reportes.length}',
+                      change: 'filtrados',
+                      icon: Icons.assessment_outlined,
+                      color: const Color(0xFF2563EB),
+                    ),
+                  ),
+                  StatCard(
+                    stat: DashboardStat(
+                      title: 'Asistencia total',
+                      value: '$totalAttendance',
+                      change: 'acumulada',
+                      icon: Icons.groups_2_outlined,
+                      color: const Color(0xFF059669),
+                    ),
+                  ),
+                  StatCard(
+                    stat: DashboardStat(
+                      title: 'Nuevas personas',
+                      value: '$totalNewPeople',
+                      change: 'reportadas',
+                      icon: Icons.person_add_alt_1_outlined,
+                      color: const Color(0xFF7C3AED),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              SurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SectionHeader(
+                      title: 'Listado de reportes',
+                      subtitle: 'Datos en tiempo real.',
+                      pillText: '${reportes.length} reportes',
+                    ),
+                    const SizedBox(height: 16),
+                    if (reportes.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Text('No hay reportes con esos filtros.'),
+                      )
+                    else if (widget.isTablet)
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: DataTable(
+                          columns: const [
+                            DataColumn(label: Text('Líder')),
+                            DataColumn(label: Text('Zona')),
+                            DataColumn(label: Text('Semana')),
+                            DataColumn(label: Text('Asistencia')),
+                            DataColumn(label: Text('Nuevos')),
+                            DataColumn(label: Text('Estado')),
+                            DataColumn(label: Text('Fecha')),
+                            DataColumn(label: Text('Acciones')),
+                          ],
+                          rows: reportes.map((r) {
+                            return DataRow(
+                              cells: [
+                                DataCell(Text(r.leaderName)),
+                                DataCell(Text(r.zone)),
+                                DataCell(Text(r.week)),
+                                DataCell(Text('${r.attendance}')),
+                                DataCell(Text('${r.newPeople}')),
+                                DataCell(StatusBadge(status: r.status)),
+                                DataCell(Text(_formatDate(r.createdAt))),
+                                DataCell(
+                                  Row(
+                                    children: [
+                                      IconButton(
+                                        tooltip: 'Editar',
+                                        icon: const Icon(
+                                          Icons.edit_rounded,
+                                          color: Color(0xFF2563EB),
+                                        ),
+                                        onPressed: () {
+                                          showDialog(
+                                            context: context,
+                                            builder: (_) =>
+                                                EditReporteDialog(reporte: r),
+                                          );
+                                        },
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Eliminar',
+                                        icon: const Icon(
+                                          Icons.delete_rounded,
+                                          color: Colors.red,
+                                        ),
+                                        onPressed: () {
+                                          _confirmDelete(context, r);
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                      )
+                    else
+                      Column(
+                        children: reportes.map((r) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const CircleAvatar(
+                                        backgroundColor: Color(0xFFDCE7FF),
+                                        child: Icon(
+                                          Icons.bar_chart_rounded,
+                                          color: Color(0xFF1D4ED8),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              r.leaderName,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            Text(
+                                              '${r.week} · ${r.zone}',
+                                              style: const TextStyle(
+                                                color: Color(0xFF64748B),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      StatusBadge(status: r.status),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Wrap(
+                                    spacing: 10,
+                                    runSpacing: 10,
+                                    children: [
+                                      InfoChip(
+                                        icon: Icons.people_outline,
+                                        text: 'Asistencia: ${r.attendance}',
+                                      ),
+                                      InfoChip(
+                                        icon: Icons.person_add_alt,
+                                        text: 'Nuevos: ${r.newPeople}',
+                                      ),
+                                      InfoChip(
+                                        icon: Icons.calendar_month_outlined,
+                                        text: _formatDate(r.createdAt),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      OutlinedButton.icon(
+                                        onPressed: () {
+                                          showDialog(
+                                            context: context,
+                                            builder: (_) =>
+                                                EditReporteDialog(reporte: r),
+                                          );
+                                        },
+                                        icon: const Icon(Icons.edit_rounded),
+                                        label: const Text('Editar'),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      FilledButton.icon(
+                                        onPressed: () {
+                                          _confirmDelete(context, r);
+                                        },
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: Colors.red,
+                                        ),
+                                        icon: const Icon(Icons.delete_rounded),
+                                        label: const Text('Eliminar'),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class ModulePlaceholderPage extends StatelessWidget {
+  final bool isDesktop;
   final String title;
-  final String value;
+  final String subtitle;
   final IconData icon;
 
-  const _MetricCard({
+  const ModulePlaceholderPage({
+    super.key,
+    required this.isDesktop,
     required this.title,
-    required this.value,
+    required this.subtitle,
     required this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 220,
-      child: Card(
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            children: [
-              Icon(icon, size: 30),
-              const SizedBox(height: 10),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(title, textAlign: TextAlign.center),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class AttendanceBarChart extends StatelessWidget {
-  final List<Map<String, dynamic>> data;
-
-  const AttendanceBarChart({super.key, required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    if (data.isEmpty) {
-      return const Center(child: Text("No hay datos suficientes."));
-    }
-
-    final maxValue = data
-        .map((e) => e["value"] as double)
-        .reduce((a, b) => a > b ? a : b);
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: BarChart(
-          BarChartData(
-            alignment: BarChartAlignment.spaceEvenly,
-            maxY: maxValue + 1,
-            gridData: FlGridData(show: true, drawVerticalLine: false),
-            borderData: FlBorderData(show: false),
-            titlesData: FlTitlesData(
-              topTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-              rightTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-              leftTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: true),
-              ),
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 70,
-                  getTitlesWidget: (value, meta) {
-                    final index = value.toInt();
-                    if (index < 0 || index >= data.length) {
-                      return const SizedBox();
-                    }
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: RotatedBox(
-                        quarterTurns: 1,
-                        child: Text(
-                          data[index]["label"].toString(),
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-            barGroups: List.generate(
-              data.length,
-              (i) => BarChartGroupData(
-                x: i,
-                barRods: [
-                  BarChartRodData(
-                    toY: data[i]["value"] as double,
-                    width: 24,
-                    borderRadius: BorderRadius.circular(8),
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isDesktop ? 28 : 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          PageHeader(isDesktop: isDesktop, title: title, subtitle: subtitle),
+          const SizedBox(height: 20),
+          SurfaceCard(
+            padding: const EdgeInsets.all(32),
+            child: Center(
+              child: Column(
+                children: [
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCE7FF),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Icon(icon, size: 36, color: const Color(0xFF1D4ED8)),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    '$title listo para conectar',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-class AppSection extends StatelessWidget {
-  final String title;
-  final String? subtitle;
-  final Widget child;
-  final Widget? action;
+/* -------------------------------------------------------------------------- */
+/*                               COMMON WIDGETS                               */
+/* -------------------------------------------------------------------------- */
 
-  const AppSection({
+class PageHeader extends StatelessWidget {
+  final bool isDesktop;
+  final String title;
+  final String subtitle;
+
+  const PageHeader({
     super.key,
+    required this.isDesktop,
     required this.title,
-    required this.child,
-    this.subtitle,
-    this.action,
+    required this.subtitle,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      children: [
+        if (!isDesktop)
+          Builder(
+            builder: (context) => Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: HeaderIconButton(
+                icon: Icons.menu_rounded,
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              ),
+            ),
+          ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+        ),
+        HeaderIconButton(
+          icon: Icons.notifications_none_rounded,
+          onPressed: () {},
+        ),
+        const SizedBox(width: 12),
+        const CircleAvatar(
+          radius: 22,
+          backgroundColor: Color(0xFFDCE7FF),
+          child: Icon(Icons.person, color: Color(0xFF1D4ED8)),
+        ),
+      ],
+    );
+  }
+}
+
+class HeaderIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  const HeaderIconButton({
+    super.key,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Icon(icon, color: const Color(0xFF0F172A)),
+        ),
+      ),
+    );
+  }
+}
+
+class SurfaceCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  const SurfaceCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(20),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class SectionHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String? pillText;
+
+  const SectionHeader({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    this.pillText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+        ),
+        if (pillText != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              pillText!,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                 HERO BANNER                                */
+/* -------------------------------------------------------------------------- */
+
+class HeroBanner extends StatelessWidget {
+  final bool isTablet;
+  final int totalLeaders;
+  final int totalReports;
+  final double completionPercent;
+
+  const HeroBanner({
+    super.key,
+    required this.isTablet,
+    required this.totalLeaders,
+    required this.totalReports,
+    required this.completionPercent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final percentText = '${(completionPercent * 100).round()}%';
+
+    final mainContent = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Hola, equipo 👋',
+          style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'Dashboard ejecutivo para líderes',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 30,
+            height: 1.1,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'Revisa rendimiento semanal y datos en vivo desde Firestore.',
+          style: TextStyle(color: Colors.white70, height: 1.45, fontSize: 14),
+        ),
+        const SizedBox(height: 18),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
           children: [
-            Row(
+            BannerPill(
+              icon: Icons.check_circle_outline_rounded,
+              text: '$percentText cumplimiento',
+            ),
+            BannerPill(
+              icon: Icons.groups_2_outlined,
+              text: '$totalLeaders líderes',
+            ),
+            BannerPill(
+              icon: Icons.bar_chart_rounded,
+              text: '$totalReports reportes',
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final sideCard = Container(
+      width: 250,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        children: [
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Meta semanal',
+              style: TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: 118,
+            height: 118,
+            child: Stack(
+              alignment: Alignment.center,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF111827),
-                        ),
-                      ),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle!,
-                          style: const TextStyle(
-                            color: Color(0xFF6B7280),
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ],
+                SizedBox.expand(
+                  child: CircularProgressIndicator(
+                    value: completionPercent,
+                    strokeWidth: 10,
+                    backgroundColor: Colors.white24,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Colors.white,
+                    ),
                   ),
                 ),
-                if (action != null) action!,
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      percentText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'completado',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
               ],
             ),
-            const SizedBox(height: 18),
-            child,
-          ],
+          ),
+        ],
+      ),
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
         ),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: isTablet
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: mainContent),
+                const SizedBox(width: 20),
+                sideCard,
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [mainContent, const SizedBox(height: 18), sideCard],
+            ),
+    );
+  }
+}
+
+class BannerPill extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const BannerPill({super.key, required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: Colors.white),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class AppPageSpacer extends StatelessWidget {
-  final Widget child;
+/* -------------------------------------------------------------------------- */
+/*                                   STATS                                    */
+/* -------------------------------------------------------------------------- */
 
-  const AppPageSpacer({super.key, required this.child});
+class StatCard extends StatelessWidget {
+  final DashboardStat stat;
+
+  const StatCard({super.key, required this.stat});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(padding: const EdgeInsets.only(top: 8), child: child);
+    return SurfaceCard(
+      child: Row(
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: stat.color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(stat.icon, color: stat.color, size: 28),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  stat.title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  stat.value,
+                  style: const TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  stat.change,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF334155),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
-class AttendancePieChart extends StatelessWidget {
-  final List<Map<String, dynamic>> data;
+/* -------------------------------------------------------------------------- */
+/*                                  FILTERS                                   */
+/* -------------------------------------------------------------------------- */
 
-  const AttendancePieChart({super.key, required this.data});
+class DashboardFiltersCard extends StatelessWidget {
+  final bool isTablet;
+  final int leadersCount;
+  final TextEditingController searchCtrl;
+  final String selectedZone;
+  final String selectedStatus;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<String?> onZoneChanged;
+  final ValueChanged<String?> onStatusChanged;
+  final VoidCallback onClear;
+
+  const DashboardFiltersCard({
+    super.key,
+    required this.isTablet,
+    required this.leadersCount,
+    required this.searchCtrl,
+    required this.selectedZone,
+    required this.selectedStatus,
+    required this.onSearchChanged,
+    required this.onZoneChanged,
+    required this.onStatusChanged,
+    required this.onClear,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (data.isEmpty) {
-      return const Center(child: Text("No hay datos suficientes."));
+    final zoneDropdown = DropdownButtonFormField<String>(
+      initialValue: selectedZone,
+      decoration: const InputDecoration(
+        labelText: 'Zona',
+        prefixIcon: Icon(Icons.place_outlined),
+      ),
+      items: const [
+        DropdownMenuItem(value: 'Todas', child: Text('Todas')),
+        DropdownMenuItem(value: 'Zona 1', child: Text('Zona 1')),
+        DropdownMenuItem(value: 'Zona 2', child: Text('Zona 2')),
+        DropdownMenuItem(value: 'Zona 3', child: Text('Zona 3')),
+        DropdownMenuItem(value: 'Zona 4', child: Text('Zona 4')),
+        DropdownMenuItem(value: 'Zona 5', child: Text('Zona 5')),
+      ],
+      onChanged: onZoneChanged,
+    );
+
+    final statusDropdown = DropdownButtonFormField<String>(
+      initialValue: selectedStatus,
+      decoration: const InputDecoration(
+        labelText: 'Estado',
+        prefixIcon: Icon(Icons.flag_outlined),
+      ),
+      items: const [
+        DropdownMenuItem(value: 'Todos', child: Text('Todos')),
+        DropdownMenuItem(value: 'Activo', child: Text('Activo')),
+        DropdownMenuItem(value: 'Pendiente', child: Text('Pendiente')),
+        DropdownMenuItem(value: 'En revisión', child: Text('En revisión')),
+      ],
+      onChanged: onStatusChanged,
+    );
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(
+            title: 'Búsqueda y filtros',
+            subtitle: 'Conectado a Firestore.',
+            pillText: '$leadersCount resultados',
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: searchCtrl,
+            onChanged: onSearchChanged,
+            decoration: InputDecoration(
+              hintText: 'Buscar líder, correo, zona o estado...',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: IconButton(
+                onPressed: onClear,
+                icon: const Icon(Icons.restart_alt_rounded),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (isTablet)
+            Row(
+              children: [
+                Expanded(child: zoneDropdown),
+                const SizedBox(width: 12),
+                Expanded(child: statusDropdown),
+              ],
+            )
+          else
+            Column(
+              children: [
+                zoneDropdown,
+                const SizedBox(height: 12),
+                statusDropdown,
+              ],
+            ),
+          const SizedBox(height: 12),
+          if (isTablet)
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: () => showDialog(
+                  context: context,
+                  builder: (_) => const AddLeaderDialog(),
+                ),
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Nuevo líder'),
+              ),
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => showDialog(
+                  context: context,
+                  builder: (_) => const AddLeaderDialog(),
+                ),
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Nuevo líder'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                   CHARTS                                   */
+/* -------------------------------------------------------------------------- */
+
+class DashboardChartsGrid extends StatelessWidget {
+  final bool isWide;
+
+  const DashboardChartsGrid({super.key, required this.isWide});
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: isWide ? 2 : 1,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: isWide ? 1.48 : 1.18,
+      ),
+      children: const [WeeklyTrendCard(), ZonePerformanceCard()],
+    );
+  }
+}
+
+class WeeklyTrendCard extends StatelessWidget {
+  const WeeklyTrendCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          SectionHeader(
+            title: 'Tendencia semanal',
+            subtitle: 'Visual demo',
+            pillText: '+18%',
+          ),
+          SizedBox(height: 22),
+          SizedBox(
+            height: 190,
+            child: CustomPaint(
+              painter: LineChartPainter(
+                values: _weekTrend,
+                color: Color(0xFF2563EB),
+              ),
+              child: SizedBox.expand(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ZonePerformanceCard extends StatelessWidget {
+  const ZonePerformanceCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(
+            title: 'Rendimiento por zona',
+            subtitle: 'Visual demo',
+            pillText: '5 zonas',
+          ),
+          SizedBox(height: 24),
+          SizedBox(height: 220, child: SimpleBarChart(values: _zoneBars)),
+        ],
+      ),
+    );
+  }
+}
+
+class LineChartPainter extends CustomPainter {
+  final List<double> values;
+  final Color color;
+
+  const LineChartPainter({required this.values, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = const Color(0xFFE2E8F0)
+      ..strokeWidth = 1;
+
+    for (int i = 0; i < 4; i++) {
+      final y = size.height * i / 3;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    final total = data.fold<double>(
-      0,
-      (sum, item) => sum + (item["value"] as double),
+    final minValue = values.reduce(math.min);
+    final maxValue = values.reduce(math.max);
+    final range = (maxValue - minValue) == 0 ? 1 : (maxValue - minValue);
+
+    final points = <Offset>[];
+    for (int i = 0; i < values.length; i++) {
+      final x = i * (size.width / (values.length - 1));
+      final normalized = (values[i] - minValue) / range;
+      final y = size.height - (normalized * (size.height - 20)) - 10;
+      points.add(Offset(x, y));
+    }
+
+    final linePath = Path()..moveTo(points.first.dx, points.first.dy);
+    final areaPath = Path()
+      ..moveTo(points.first.dx, size.height)
+      ..lineTo(points.first.dx, points.first.dy);
+
+    for (final point in points.skip(1)) {
+      linePath.lineTo(point.dx, point.dy);
+      areaPath.lineTo(point.dx, point.dy);
+    }
+
+    areaPath
+      ..lineTo(points.last.dx, size.height)
+      ..close();
+
+    final areaPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [color.withOpacity(0.22), color.withOpacity(0.02)],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    final linePaint = Paint()
+      ..color = color
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawPath(areaPath, areaPaint);
+    canvas.drawPath(linePath, linePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant LineChartPainter oldDelegate) => false;
+}
+
+class SimpleBarChart extends StatelessWidget {
+  final List<double> values;
+
+  const SimpleBarChart({super.key, required this.values});
+
+  @override
+  Widget build(BuildContext context) {
+    final maxValue = values.reduce(math.max);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: List.generate(values.length, (index) {
+        final value = values[index];
+        final heightFactor = value / maxValue;
+
+        return Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(value.toInt().toString()),
+                const SizedBox(height: 8),
+                Container(
+                  height: 150 * heightFactor,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF60A5FA), Color(0xFF1D4ED8)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text('Z${index + 1}'),
+              ],
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                             TABLE / RESPONSIVE                             */
+/* -------------------------------------------------------------------------- */
+
+class LeadersSection extends StatelessWidget {
+  final bool tableView;
+  final List<LeaderRecord> leaders;
+
+  const LeadersSection({
+    super.key,
+    required this.tableView,
+    required this.leaders,
+  });
+
+  String _formatDate(DateTime? dt) {
+    if (dt == null) return 'Sin fecha';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
+  Future<void> _confirmDelete(BuildContext context, LeaderRecord leader) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Eliminar líder'),
+        content: Text(
+          '¿Seguro que deseas eliminar a ${leader.name}? También se eliminarán sus registros y reportes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
     );
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: PieChart(
-                PieChartData(
-                  sectionsSpace: 3,
-                  centerSpaceRadius: 45,
-                  sections: List.generate(data.length, (i) {
-                    final value = data[i]["value"] as double;
-                    final percent = total == 0 ? 0 : (value / total) * 100;
+    if (confirmed == true) {
+      try {
+        await FirestoreService.deleteLeader(leaderId: leader.id);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Líder eliminado correctamente')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al eliminar líder: $e')),
+          );
+        }
+      }
+    }
+  }
 
-                    return PieChartSectionData(
-                      value: value,
-                      title: "${percent.toStringAsFixed(0)}%",
-                      radius: 95,
-                      titleStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(
+            title: 'Líderes',
+            subtitle: 'Datos en vivo desde Firestore.',
+            pillText: '${leaders.length} registros',
+          ),
+          const SizedBox(height: 16),
+          if (leaders.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text('No hay líderes con esos filtros.'),
+            )
+          else
+            tableView ? _buildTable(context) : _buildCards(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTable(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        columns: const [
+          DataColumn(label: Text('Líder')),
+          DataColumn(label: Text('Correo')),
+          DataColumn(label: Text('Zona')),
+          DataColumn(label: Text('Reportes')),
+          DataColumn(label: Text('Última actividad')),
+          DataColumn(label: Text('Estado')),
+          DataColumn(label: Text('Acciones')),
+        ],
+        rows: leaders.map((leader) {
+          return DataRow(
+            cells: [
+              DataCell(Text(leader.name)),
+              DataCell(Text(leader.email)),
+              DataCell(Text(leader.zone)),
+              DataCell(Text('${leader.reports}')),
+              DataCell(Text(_formatDate(leader.lastActivity))),
+              DataCell(StatusBadge(status: leader.status)),
+              DataCell(
+                Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Editar',
+                      icon: const Icon(
+                        Icons.edit_rounded,
+                        color: Color(0xFF2563EB),
                       ),
-                    );
-                  }),
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => EditLeaderDialog(leader: leader),
+                        );
+                      },
+                    ),
+                    IconButton(
+                      tooltip: 'Eliminar',
+                      icon: const Icon(Icons.delete_rounded, color: Colors.red),
+                      onPressed: () => _confirmDelete(context, leader),
+                    ),
+                  ],
                 ),
               ),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildCards(BuildContext context) {
+    return Column(
+      children: leaders.map((leader) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(20),
             ),
-            const SizedBox(width: 20),
-            Expanded(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: data.length,
-                itemBuilder: (context, i) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Text(
-                      "${data[i]["label"]}: ${(data[i]["value"] as double).toStringAsFixed(0)}",
-                      style: const TextStyle(fontSize: 13),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const CircleAvatar(
+                      backgroundColor: Color(0xFFDCE7FF),
+                      child: Icon(Icons.person, color: Color(0xFF1D4ED8)),
                     ),
-                  );
-                },
-              ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            leader.name,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          Text(
+                            leader.email,
+                            style: const TextStyle(color: Color(0xFF64748B)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    StatusBadge(status: leader.status),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    InfoChip(icon: Icons.place_outlined, text: leader.zone),
+                    InfoChip(
+                      icon: Icons.description_outlined,
+                      text: '${leader.reports} reportes',
+                    ),
+                    InfoChip(
+                      icon: Icons.schedule_outlined,
+                      text: _formatDate(leader.lastActivity),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => EditLeaderDialog(leader: leader),
+                        );
+                      },
+                      icon: const Icon(Icons.edit_rounded),
+                      label: const Text('Editar'),
+                    ),
+                    const SizedBox(width: 10),
+                    FilledButton.icon(
+                      onPressed: () => _confirmDelete(context, leader),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.red,
+                      ),
+                      icon: const Icon(Icons.delete_rounded),
+                      label: const Text('Eliminar'),
+                    ),
+                  ],
+                ),
+              ],
             ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class StatusBadge extends StatelessWidget {
+  final String status;
+
+  const StatusBadge({super.key, required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    Color bg;
+    Color fg;
+
+    switch (status.toLowerCase()) {
+      case 'activo':
+      case 'completado':
+      case 'enviado':
+        bg = const Color(0xFFDCFCE7);
+        fg = const Color(0xFF166534);
+        break;
+      case 'pendiente':
+        bg = const Color(0xFFFEF3C7);
+        fg = const Color(0xFF92400E);
+        break;
+      default:
+        bg = const Color(0xFFEDE9FE);
+        fg = const Color(0xFF6D28D9);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const InfoChip({super.key, required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF64748B)),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF334155),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                             ACTIVITY / PROGRESS                            */
+/* -------------------------------------------------------------------------- */
+
+class ActivityCard extends StatelessWidget {
+  const ActivityCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionHeader(
+            title: 'Actividad reciente',
+            subtitle: 'Sección visual',
+          ),
+          const SizedBox(height: 18),
+          ...List.generate(_activities.length, (index) {
+            final activity = _activities[index];
+
+            return Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      margin: const EdgeInsets.only(top: 6),
+                      decoration: BoxDecoration(
+                        color: activity.color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            activity.title,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            activity.subtitle,
+                            style: const TextStyle(color: Color(0xFF64748B)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(activity.time),
+                  ],
+                ),
+                if (index != _activities.length - 1) const Divider(height: 24),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class CompletionCard extends StatelessWidget {
+  const CompletionCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(
+            title: 'Cumplimiento',
+            subtitle: 'Estado general visual',
+          ),
+          SizedBox(height: 22),
+          Center(child: ProgressCircle()),
+          SizedBox(height: 24),
+          ProgressMetric(label: 'Reportes enviados', value: 0.86),
+          SizedBox(height: 16),
+          ProgressMetric(label: 'Asistencia registrada', value: 0.69),
+          SizedBox(height: 16),
+          ProgressMetric(label: 'Seguimientos cerrados', value: 0.58),
+        ],
+      ),
+    );
+  }
+}
+
+class ProgressCircle extends StatelessWidget {
+  const ProgressCircle({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 148,
+      height: 148,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox.expand(
+            child: CircularProgressIndicator(
+              value: 0.73,
+              strokeWidth: 14,
+              backgroundColor: Color(0xFFE2E8F0),
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '73%',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+              ),
+              SizedBox(height: 4),
+              Text('completado', style: TextStyle(color: Color(0xFF64748B))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ProgressMetric extends StatelessWidget {
+  final String label;
+  final double value;
+
+  const ProgressMetric({super.key, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = (value * 100).round();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text(label)),
+            Text('$percent%'),
           ],
         ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            minHeight: 10,
+            value: value,
+            backgroundColor: const Color(0xFFE2E8F0),
+            color: const Color(0xFF2563EB),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                  DIALOGS                                   */
+/* -------------------------------------------------------------------------- */
+
+class AddLeaderDialog extends StatefulWidget {
+  const AddLeaderDialog({super.key});
+
+  @override
+  State<AddLeaderDialog> createState() => _AddLeaderDialogState();
+}
+
+class _AddLeaderDialogState extends State<AddLeaderDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final nameCtrl = TextEditingController();
+  final emailCtrl = TextEditingController();
+  final reportsCtrl = TextEditingController(text: '0');
+
+  String zone = 'Zona 1';
+  String status = 'Activo';
+  bool loading = false;
+
+  @override
+  void dispose() {
+    nameCtrl.dispose();
+    emailCtrl.dispose();
+    reportsCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => loading = true);
+
+    try {
+      await FirestoreService.addLeader(
+        name: nameCtrl.text.trim(),
+        email: emailCtrl.text.trim(),
+        zone: zone,
+        reports: int.tryParse(reportsCtrl.text.trim()) ?? 0,
+        status: status,
+      );
+
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        setState(() => loading = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al guardar líder: $e')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Agregar líder'),
+      content: SizedBox(
+        width: 420,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Nombre'),
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'Ingresa el nombre'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: emailCtrl,
+                  decoration: const InputDecoration(labelText: 'Correo'),
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'Ingresa el correo'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: zone,
+                  items: const [
+                    DropdownMenuItem(value: 'Zona 1', child: Text('Zona 1')),
+                    DropdownMenuItem(value: 'Zona 2', child: Text('Zona 2')),
+                    DropdownMenuItem(value: 'Zona 3', child: Text('Zona 3')),
+                    DropdownMenuItem(value: 'Zona 4', child: Text('Zona 4')),
+                    DropdownMenuItem(value: 'Zona 5', child: Text('Zona 5')),
+                  ],
+                  onChanged: (v) => setState(() => zone = v!),
+                  decoration: const InputDecoration(labelText: 'Zona'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: reportsCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Reportes'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: status,
+                  items: const [
+                    DropdownMenuItem(value: 'Activo', child: Text('Activo')),
+                    DropdownMenuItem(
+                      value: 'Pendiente',
+                      child: Text('Pendiente'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'En revisión',
+                      child: Text('En revisión'),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => status = v!),
+                  decoration: const InputDecoration(labelText: 'Estado'),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
+      actions: [
+        TextButton(
+          onPressed: loading ? null : () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: loading ? null : save,
+          child: loading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Guardar'),
+        ),
+      ],
+    );
+  }
+}
+
+class EditLeaderDialog extends StatefulWidget {
+  final LeaderRecord leader;
+
+  const EditLeaderDialog({super.key, required this.leader});
+
+  @override
+  State<EditLeaderDialog> createState() => _EditLeaderDialogState();
+}
+
+class _EditLeaderDialogState extends State<EditLeaderDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController nameCtrl;
+  late final TextEditingController emailCtrl;
+  late final TextEditingController reportsCtrl;
+
+  late String zone;
+  late String status;
+  bool loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    nameCtrl = TextEditingController(text: widget.leader.name);
+    emailCtrl = TextEditingController(text: widget.leader.email);
+    reportsCtrl = TextEditingController(text: '${widget.leader.reports}');
+    zone = widget.leader.zone;
+    status = widget.leader.status;
+  }
+
+  @override
+  void dispose() {
+    nameCtrl.dispose();
+    emailCtrl.dispose();
+    reportsCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => loading = true);
+
+    try {
+      await FirestoreService.updateLeader(
+        leaderId: widget.leader.id,
+        name: nameCtrl.text.trim(),
+        email: emailCtrl.text.trim(),
+        zone: zone,
+        reports: int.tryParse(reportsCtrl.text.trim()) ?? 0,
+        status: status,
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Líder actualizado correctamente')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al actualizar líder: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Editar líder'),
+      content: SizedBox(
+        width: 420,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Nombre'),
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'Ingresa el nombre'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: emailCtrl,
+                  decoration: const InputDecoration(labelText: 'Correo'),
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'Ingresa el correo'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: zone,
+                  items: const [
+                    DropdownMenuItem(value: 'Zona 1', child: Text('Zona 1')),
+                    DropdownMenuItem(value: 'Zona 2', child: Text('Zona 2')),
+                    DropdownMenuItem(value: 'Zona 3', child: Text('Zona 3')),
+                    DropdownMenuItem(value: 'Zona 4', child: Text('Zona 4')),
+                    DropdownMenuItem(value: 'Zona 5', child: Text('Zona 5')),
+                  ],
+                  onChanged: (v) => setState(() => zone = v!),
+                  decoration: const InputDecoration(labelText: 'Zona'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: reportsCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Reportes'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: status,
+                  items: const [
+                    DropdownMenuItem(value: 'Activo', child: Text('Activo')),
+                    DropdownMenuItem(
+                      value: 'Pendiente',
+                      child: Text('Pendiente'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'En revisión',
+                      child: Text('En revisión'),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => status = v!),
+                  decoration: const InputDecoration(labelText: 'Estado'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: loading ? null : () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: loading ? null : save,
+          child: loading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Guardar cambios'),
+        ),
+      ],
+    );
+  }
+}
+
+class AddRegistroDialog extends StatefulWidget {
+  const AddRegistroDialog({super.key});
+
+  @override
+  State<AddRegistroDialog> createState() => _AddRegistroDialogState();
+}
+
+class _AddRegistroDialogState extends State<AddRegistroDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final descriptionCtrl = TextEditingController();
+  final zoneCtrl = TextEditingController(text: 'Zona 1');
+
+  String? leaderId;
+  String? leaderName;
+  String zone = 'Zona 1';
+  String type = 'Asistencia';
+  String status = 'Completado';
+  bool loading = false;
+
+  @override
+  void dispose() {
+    descriptionCtrl.dispose();
+    zoneCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (leaderId == null || leaderName == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Selecciona un líder')));
+      return;
+    }
+
+    setState(() => loading = true);
+
+    try {
+      await FirestoreService.addRegistro(
+        leaderId: leaderId!,
+        leaderName: leaderName!,
+        zone: zone,
+        type: type,
+        description: descriptionCtrl.text.trim(),
+        status: status,
+      );
+
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        setState(() => loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al guardar registro: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Agregar registro'),
+      content: SizedBox(
+        width: 460,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StreamBuilder<List<LeaderRecord>>(
+                  stream: FirestoreService.leadersStream(),
+                  builder: (context, snapshot) {
+                    final leaders = snapshot.data ?? [];
+
+                    return DropdownButtonFormField<String>(
+                      initialValue: leaderId,
+                      decoration: const InputDecoration(labelText: 'Líder'),
+                      items: leaders.map((leader) {
+                        return DropdownMenuItem(
+                          value: leader.id,
+                          child: Text(leader.name),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        final selected = leaders.firstWhere(
+                          (e) => e.id == value,
+                        );
+                        setState(() {
+                          leaderId = selected.id;
+                          leaderName = selected.name;
+                          zone = selected.zone;
+                          zoneCtrl.text = selected.zone;
+                        });
+                      },
+                      validator: (v) =>
+                          v == null || v.isEmpty ? 'Selecciona un líder' : null,
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: zoneCtrl,
+                  readOnly: true,
+                  decoration: const InputDecoration(labelText: 'Zona'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: type,
+                  decoration: const InputDecoration(labelText: 'Tipo'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'Asistencia',
+                      child: Text('Asistencia'),
+                    ),
+                    DropdownMenuItem(value: 'Visita', child: Text('Visita')),
+                    DropdownMenuItem(
+                      value: 'Seguimiento',
+                      child: Text('Seguimiento'),
+                    ),
+                    DropdownMenuItem(value: 'Reunión', child: Text('Reunión')),
+                  ],
+                  onChanged: (v) => setState(() => type = v!),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: descriptionCtrl,
+                  decoration: const InputDecoration(labelText: 'Descripción'),
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'Ingresa una descripción'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: status,
+                  decoration: const InputDecoration(labelText: 'Estado'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'Completado',
+                      child: Text('Completado'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Pendiente',
+                      child: Text('Pendiente'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'En revisión',
+                      child: Text('En revisión'),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => status = v!),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: loading ? null : () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: loading ? null : save,
+          child: loading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Guardar'),
+        ),
+      ],
+    );
+  }
+}
+
+class EditRegistroDialog extends StatefulWidget {
+  final RegistroRecord registro;
+
+  const EditRegistroDialog({super.key, required this.registro});
+
+  @override
+  State<EditRegistroDialog> createState() => _EditRegistroDialogState();
+}
+
+class _EditRegistroDialogState extends State<EditRegistroDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController descriptionCtrl;
+  late final TextEditingController zoneCtrl;
+
+  String? leaderId;
+  String? leaderName;
+  late String zone;
+  late String type;
+  late String status;
+  bool loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    descriptionCtrl = TextEditingController(text: widget.registro.description);
+    zoneCtrl = TextEditingController(text: widget.registro.zone);
+
+    leaderId = widget.registro.leaderId;
+    leaderName = widget.registro.leaderName;
+    zone = widget.registro.zone;
+    type = widget.registro.type;
+    status = widget.registro.status;
+  }
+
+  @override
+  void dispose() {
+    descriptionCtrl.dispose();
+    zoneCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (leaderId == null || leaderName == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Selecciona un líder')));
+      return;
+    }
+
+    setState(() => loading = true);
+
+    try {
+      await FirestoreService.updateRegistro(
+        registroId: widget.registro.id,
+        leaderId: leaderId!,
+        leaderName: leaderName!,
+        zone: zone,
+        type: type,
+        description: descriptionCtrl.text.trim(),
+        status: status,
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registro actualizado correctamente')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al actualizar registro: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Editar registro'),
+      content: SizedBox(
+        width: 460,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StreamBuilder<List<LeaderRecord>>(
+                  stream: FirestoreService.leadersStream(),
+                  builder: (context, snapshot) {
+                    final leaders = snapshot.data ?? [];
+
+                    return DropdownButtonFormField<String>(
+                      initialValue: leaderId,
+                      decoration: const InputDecoration(labelText: 'Líder'),
+                      items: leaders.map((leader) {
+                        return DropdownMenuItem(
+                          value: leader.id,
+                          child: Text(leader.name),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        final selected = leaders.firstWhere(
+                          (e) => e.id == value,
+                        );
+                        setState(() {
+                          leaderId = selected.id;
+                          leaderName = selected.name;
+                          zone = selected.zone;
+                          zoneCtrl.text = selected.zone;
+                        });
+                      },
+                      validator: (v) =>
+                          v == null || v.isEmpty ? 'Selecciona un líder' : null,
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: zoneCtrl,
+                  readOnly: true,
+                  decoration: const InputDecoration(labelText: 'Zona'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: type,
+                  decoration: const InputDecoration(labelText: 'Tipo'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'Asistencia',
+                      child: Text('Asistencia'),
+                    ),
+                    DropdownMenuItem(value: 'Visita', child: Text('Visita')),
+                    DropdownMenuItem(
+                      value: 'Seguimiento',
+                      child: Text('Seguimiento'),
+                    ),
+                    DropdownMenuItem(value: 'Reunión', child: Text('Reunión')),
+                  ],
+                  onChanged: (v) => setState(() => type = v!),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: descriptionCtrl,
+                  decoration: const InputDecoration(labelText: 'Descripción'),
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'Ingresa una descripción'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: status,
+                  decoration: const InputDecoration(labelText: 'Estado'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'Completado',
+                      child: Text('Completado'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Pendiente',
+                      child: Text('Pendiente'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'En revisión',
+                      child: Text('En revisión'),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => status = v!),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: loading ? null : () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: loading ? null : save,
+          child: loading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Guardar cambios'),
+        ),
+      ],
+    );
+  }
+}
+
+class EditReporteDialog extends StatefulWidget {
+  final ReporteRecord reporte;
+
+  const EditReporteDialog({super.key, required this.reporte});
+
+  @override
+  State<EditReporteDialog> createState() => _EditReporteDialogState();
+}
+
+class _EditReporteDialogState extends State<EditReporteDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController weekCtrl;
+  late final TextEditingController attendanceCtrl;
+  late final TextEditingController newPeopleCtrl;
+  late final TextEditingController zoneCtrl;
+
+  String? leaderId;
+  String? leaderName;
+  late String zone;
+  late String status;
+  bool loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    weekCtrl = TextEditingController(text: widget.reporte.week);
+    attendanceCtrl = TextEditingController(
+      text: '${widget.reporte.attendance}',
+    );
+    newPeopleCtrl = TextEditingController(text: '${widget.reporte.newPeople}');
+    zoneCtrl = TextEditingController(text: widget.reporte.zone);
+
+    leaderId = widget.reporte.leaderId;
+    leaderName = widget.reporte.leaderName;
+    zone = widget.reporte.zone;
+    status = widget.reporte.status;
+  }
+
+  @override
+  void dispose() {
+    weekCtrl.dispose();
+    attendanceCtrl.dispose();
+    newPeopleCtrl.dispose();
+    zoneCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (leaderId == null || leaderName == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Selecciona un líder')));
+      return;
+    }
+
+    setState(() => loading = true);
+
+    try {
+      await FirestoreService.updateReporte(
+        reporteId: widget.reporte.id,
+        oldLeaderId: widget.reporte.leaderId,
+        leaderId: leaderId!,
+        leaderName: leaderName!,
+        zone: zone,
+        week: weekCtrl.text.trim(),
+        attendance: int.tryParse(attendanceCtrl.text.trim()) ?? 0,
+        newPeople: int.tryParse(newPeopleCtrl.text.trim()) ?? 0,
+        status: status,
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reporte actualizado correctamente')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al actualizar reporte: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Editar reporte'),
+      content: SizedBox(
+        width: 460,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StreamBuilder<List<LeaderRecord>>(
+                  stream: FirestoreService.leadersStream(),
+                  builder: (context, snapshot) {
+                    final leaders = snapshot.data ?? [];
+
+                    return DropdownButtonFormField<String>(
+                      initialValue: leaderId,
+                      decoration: const InputDecoration(labelText: 'Líder'),
+                      items: leaders.map((leader) {
+                        return DropdownMenuItem(
+                          value: leader.id,
+                          child: Text(leader.name),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        final selected = leaders.firstWhere(
+                          (e) => e.id == value,
+                        );
+                        setState(() {
+                          leaderId = selected.id;
+                          leaderName = selected.name;
+                          zone = selected.zone;
+                          zoneCtrl.text = selected.zone;
+                        });
+                      },
+                      validator: (v) =>
+                          v == null || v.isEmpty ? 'Selecciona un líder' : null,
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: zoneCtrl,
+                  readOnly: true,
+                  decoration: const InputDecoration(labelText: 'Zona'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: weekCtrl,
+                  decoration: const InputDecoration(labelText: 'Semana'),
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'Ingresa la semana'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: attendanceCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Asistencia'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: newPeopleCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Nuevas personas',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: status,
+                  decoration: const InputDecoration(labelText: 'Estado'),
+                  items: const [
+                    DropdownMenuItem(value: 'Enviado', child: Text('Enviado')),
+                    DropdownMenuItem(
+                      value: 'Pendiente',
+                      child: Text('Pendiente'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'En revisión',
+                      child: Text('En revisión'),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => status = v!),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: loading ? null : () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: loading ? null : save,
+          child: loading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Guardar cambios'),
+        ),
+      ],
+    );
+  }
+}
+
+class AddReporteDialog extends StatefulWidget {
+  const AddReporteDialog({super.key});
+
+  @override
+  State<AddReporteDialog> createState() => _AddReporteDialogState();
+}
+
+class _AddReporteDialogState extends State<AddReporteDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final weekCtrl = TextEditingController();
+  final attendanceCtrl = TextEditingController(text: '0');
+  final newPeopleCtrl = TextEditingController(text: '0');
+  final zoneCtrl = TextEditingController(text: 'Zona 1');
+
+  String? leaderId;
+  String? leaderName;
+  String zone = 'Zona 1';
+  String status = 'Enviado';
+  bool loading = false;
+
+  @override
+  void dispose() {
+    weekCtrl.dispose();
+    attendanceCtrl.dispose();
+    newPeopleCtrl.dispose();
+    zoneCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (leaderId == null || leaderName == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Selecciona un líder')));
+      return;
+    }
+
+    setState(() => loading = true);
+
+    try {
+      await FirestoreService.addReporte(
+        leaderId: leaderId!,
+        leaderName: leaderName!,
+        zone: zone,
+        week: weekCtrl.text.trim(),
+        attendance: int.tryParse(attendanceCtrl.text.trim()) ?? 0,
+        newPeople: int.tryParse(newPeopleCtrl.text.trim()) ?? 0,
+        status: status,
+      );
+
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        setState(() => loading = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al guardar reporte: $e')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Agregar reporte'),
+      content: SizedBox(
+        width: 460,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StreamBuilder<List<LeaderRecord>>(
+                  stream: FirestoreService.leadersStream(),
+                  builder: (context, snapshot) {
+                    final leaders = snapshot.data ?? [];
+
+                    return DropdownButtonFormField<String>(
+                      initialValue: leaderId,
+                      decoration: const InputDecoration(labelText: 'Líder'),
+                      items: leaders.map((leader) {
+                        return DropdownMenuItem(
+                          value: leader.id,
+                          child: Text(leader.name),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        final selected = leaders.firstWhere(
+                          (e) => e.id == value,
+                        );
+                        setState(() {
+                          leaderId = selected.id;
+                          leaderName = selected.name;
+                          zone = selected.zone;
+                          zoneCtrl.text = selected.zone;
+                        });
+                      },
+                      validator: (v) =>
+                          v == null || v.isEmpty ? 'Selecciona un líder' : null,
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: zoneCtrl,
+                  readOnly: true,
+                  decoration: const InputDecoration(labelText: 'Zona'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: weekCtrl,
+                  decoration: const InputDecoration(labelText: 'Semana'),
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'Ingresa la semana'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: attendanceCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Asistencia'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: newPeopleCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Nuevas personas',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: status,
+                  decoration: const InputDecoration(labelText: 'Estado'),
+                  items: const [
+                    DropdownMenuItem(value: 'Enviado', child: Text('Enviado')),
+                    DropdownMenuItem(
+                      value: 'Pendiente',
+                      child: Text('Pendiente'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'En revisión',
+                      child: Text('En revisión'),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => status = v!),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: loading ? null : () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: loading ? null : save,
+          child: loading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Guardar'),
+        ),
+      ],
     );
   }
 }

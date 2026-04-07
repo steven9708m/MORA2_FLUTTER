@@ -12,7 +12,12 @@
           "package_name": "com.example.grupo_juvenil_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "630942576544-s9rig6h478bnkqscskqipbn5a7vkguip.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBKlObOG-AydDv6Bu8LGUvo_mcYIwYT4rg"
@@ -20,7 +25,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "630942576544-s9rig6h478bnkqscskqipbn5a7vkguip.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "630942576544-rqc2tm2adrbf96tdbhmc9cojb5441k5f.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.grupoJuvenilApp"
+              }
+            }
+          ]
         }
       }
     }

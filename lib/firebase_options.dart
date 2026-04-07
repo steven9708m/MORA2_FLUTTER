@@ -64,6 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '630942576544',
     projectId: 'grupo-juvenil-morados',
     storageBucket: 'grupo-juvenil-morados.firebasestorage.app',
+    iosClientId: '630942576544-rqc2tm2adrbf96tdbhmc9cojb5441k5f.apps.googleusercontent.com',
     iosBundleId: 'com.example.grupoJuvenilApp',
   );
 
@@ -73,6 +74,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '630942576544',
     projectId: 'grupo-juvenil-morados',
     storageBucket: 'grupo-juvenil-morados.firebasestorage.app',
+    iosClientId: '630942576544-rqc2tm2adrbf96tdbhmc9cojb5441k5f.apps.googleusercontent.com',
     iosBundleId: 'com.example.grupoJuvenilApp',
   );
 
@@ -85,4 +87,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'grupo-juvenil-morados.firebasestorage.app',
     measurementId: 'G-DFPBPC2D9C',
   );
+
 }

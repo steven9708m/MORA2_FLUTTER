@@ -33,10 +33,10 @@ dependencies:
   excel: ^4.0.6
   file_saver: ^0.2.14
   fl_chart: ^0.68.0
-  firebase_auth: ^5.1.2
+  firebase_auth: ^5.7.0
 
-  firebase_core: ^3.0.0
-  cloud_firestore: ^5.0.0
+  firebase_core: ^3.15.2
+  cloud_firestore: ^5.6.12
   intl: ^0.19.0
 
   # The following adds the Cupertino Icons font to your application.
