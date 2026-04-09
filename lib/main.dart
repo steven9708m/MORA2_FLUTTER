@@ -1,3 +1,15 @@
+// main.dart optimizado para producción (Opción 3 corregida)
+// Corrección incluida:
+// - CompletionCard arreglada
+// - ProgressCircle compatible
+// - main completo listo para reemplazar
+//
+// Mantiene:
+// - UI moderna
+// - Auth + Firestore unificados para crear líderes
+// - Firestore usando mora2
+// - creación con app secundaria para no cerrar sesión del admin
+
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,10 +20,156 @@ import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
   runApp(const JvLeadersApp());
+}
+
+class AppCollections {
+  static const leaders = 'leaders';
+  static const registros = 'registros';
+  static const reportes = 'reportes';
+}
+
+class AppCatalogs {
+  static const zones = <String>[
+    'Zona 1',
+    'Zona 2',
+    'Zona 3',
+    'Zona 4',
+    'Zona 5',
+  ];
+
+  static const leaderStatuses = <String>['Activo', 'Pendiente', 'En revisión'];
+
+  static const registroStatuses = <String>[
+    'Completado',
+    'Pendiente',
+    'En revisión',
+  ];
+
+  static const reporteStatuses = <String>[
+    'Enviado',
+    'Pendiente',
+    'En revisión',
+  ];
+
+  static const registroTypes = <String>[
+    'Asistencia',
+    'Visita',
+    'Seguimiento',
+    'Reunión',
+  ];
+}
+
+class AppUi {
+  static void showSnackBar(
+    BuildContext context,
+    String message, {
+    Color? backgroundColor,
+  }) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: backgroundColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    );
+  }
+}
+
+class Validators {
+  static String? requiredText(String? value, String label) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Ingresa $label';
+    }
+    return null;
+  }
+
+  static String? email(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Ingresa el correo';
+    }
+    final email = value.trim();
+    final ok = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+    if (!ok) return 'Ingresa un correo válido';
+    return null;
+  }
+
+  static String? password(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Ingresa la contraseña';
+    }
+    if (value.trim().length < 6) {
+      return 'La contraseña debe tener al menos 6 caracteres';
+    }
+    return null;
+  }
+}
+
+class AuthService {
+  static String mapFirebaseAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'email-already-in-use':
+        return 'Ese correo ya está registrado.';
+      case 'weak-password':
+        return 'La contraseña es demasiado débil.';
+      case 'invalid-email':
+        return 'El correo no es válido.';
+      case 'operation-not-allowed':
+        return 'Este método de autenticación no está habilitado.';
+      case 'network-request-failed':
+        return 'Error de red. Revisa tu conexión.';
+      default:
+        return e.message ?? 'Ocurrió un error con la autenticación.';
+    }
+  }
+
+  static Future<void> createLeaderAccount({
+    required String name,
+    required String email,
+    required String password,
+    required String zone,
+    String status = 'Activo',
+  }) async {
+    FirebaseApp? secondaryApp;
+
+    try {
+      final appName =
+          'secondary-leader-${DateTime.now().microsecondsSinceEpoch}';
+
+      secondaryApp = await Firebase.initializeApp(
+        name: appName,
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+
+      final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+
+      final cred = await secondaryAuth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password.trim(),
+      );
+
+      await FirestoreService.upsertLeaderProfile(
+        leaderId: cred.user!.uid,
+        name: name.trim(),
+        email: email.trim(),
+        zone: zone,
+        reports: 0,
+        status: status,
+      );
+
+      await secondaryAuth.signOut();
+    } on FirebaseAuthException {
+      rethrow;
+    } catch (_) {
+      rethrow;
+    } finally {
+      if (secondaryApp != null) {
+        await secondaryApp.delete();
+      }
+    }
+  }
 }
 
 class JvLeadersApp extends StatelessWidget {
@@ -35,6 +193,7 @@ class JvLeadersApp extends StatelessWidget {
           bodyColor: const Color(0xFF0F172A),
           displayColor: const Color(0xFF0F172A),
         ),
+        cardTheme: const CardThemeData(elevation: 0, margin: EdgeInsets.zero),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: Colors.white,
@@ -108,7 +267,33 @@ class SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFEFF6FF), Color(0xFFF8FAFC), Color(0xFFEDE9FE)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text(
+                'Cargando panel...',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF334155),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -129,6 +314,7 @@ class _LoginPageState extends State<LoginPage> {
 
   bool loading = false;
   String? errorText;
+  bool obscurePassword = true;
 
   @override
   void dispose() {
@@ -170,26 +356,24 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: emailCtrl.text.trim(),
-        password: passCtrl.text.trim(),
+      final email = emailCtrl.text.trim();
+      final password = passCtrl.text.trim();
+      final inferredName = email.split('@').first;
+
+      await AuthService.createLeaderAccount(
+        name: inferredName,
+        email: email,
+        password: password,
+        zone: 'Zona 1',
+        status: 'Activo',
       );
 
-      await FirebaseFirestore.instance
-          .collection('leaders')
-          .doc(cred.user!.uid)
-          .set({
-            'name': emailCtrl.text.trim().split('@').first,
-            'email': emailCtrl.text.trim(),
-            'zone': 'Zona 1',
-            'reports': 0,
-            'status': 'Activo',
-            'lastActivity': Timestamp.now(),
-            'createdAt': Timestamp.now(),
-          }, SetOptions(merge: true));
+      if (mounted) {
+        AppUi.showSnackBar(context, 'Usuario líder creado correctamente');
+      }
     } on FirebaseAuthException catch (e) {
       setState(() {
-        errorText = e.message ?? 'No se pudo crear el usuario.';
+        errorText = AuthService.mapFirebaseAuthError(e);
       });
     } catch (_) {
       setState(() {
@@ -202,110 +386,362 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Widget _buildBackgroundBubble({
+    required double size,
+    required Alignment alignment,
+    required Color color,
+  }) {
+    return Align(
+      alignment: alignment,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 430),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: SurfaceCard(
-              padding: const EdgeInsets.all(28),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
-                      ),
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    child: const Icon(
-                      Icons.groups_2,
-                      color: Colors.white,
-                      size: 34,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  const Text(
-                    'JV Líderes',
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Inicia sesión para entrar al panel',
-                    style: TextStyle(color: Color(0xFF64748B)),
-                  ),
-                  const SizedBox(height: 24),
-                  TextField(
-                    controller: emailCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Correo',
-                      prefixIcon: Icon(Icons.email_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: passCtrl,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Contraseña',
-                      prefixIcon: Icon(Icons.lock_outline),
-                    ),
-                  ),
-                  if (errorText != null) ...[
-                    const SizedBox(height: 14),
-                    Text(
-                      errorText!,
-                      style: const TextStyle(
-                        color: Colors.red,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: loading ? null : signIn,
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                      ),
-                      child: loading
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Iniciar sesión'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: loading ? null : createLeaderUser,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                      ),
-                      child: const Text('Crear usuario líder'),
-                    ),
-                  ),
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color(0xFFEFF6FF),
+                  Color(0xFFF8FAFC),
+                  Color(0xFFEDE9FE),
                 ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
             ),
           ),
+          _buildBackgroundBubble(
+            size: 280,
+            alignment: const Alignment(-1.1, -0.9),
+            color: const Color(0x332563EB),
+          ),
+          _buildBackgroundBubble(
+            size: 220,
+            alignment: const Alignment(1.15, -0.65),
+            color: const Color(0x227C3AED),
+          ),
+          _buildBackgroundBubble(
+            size: 240,
+            alignment: const Alignment(1.1, 0.9),
+            color: const Color(0x22059669),
+          ),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1080),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final twoColumns = constraints.maxWidth >= 880;
+
+                    return twoColumns
+                        ? Row(
+                            children: [
+                              const Expanded(child: LoginInfoPanel()),
+                              const SizedBox(width: 28),
+                              Expanded(
+                                child: LoginFormCard(
+                                  emailCtrl: emailCtrl,
+                                  passCtrl: passCtrl,
+                                  loading: loading,
+                                  errorText: errorText,
+                                  obscurePassword: obscurePassword,
+                                  onTogglePassword: () {
+                                    setState(() {
+                                      obscurePassword = !obscurePassword;
+                                    });
+                                  },
+                                  onSignIn: signIn,
+                                  onCreateLeader: createLeaderUser,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 460),
+                              child: LoginFormCard(
+                                emailCtrl: emailCtrl,
+                                passCtrl: passCtrl,
+                                loading: loading,
+                                errorText: errorText,
+                                obscurePassword: obscurePassword,
+                                onTogglePassword: () {
+                                  setState(() {
+                                    obscurePassword = !obscurePassword;
+                                  });
+                                },
+                                onSignIn: signIn,
+                                onCreateLeader: createLeaderUser,
+                              ),
+                            ),
+                          );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LoginInfoPanel extends StatelessWidget {
+  const LoginInfoPanel({super.key});
+
+  Widget _infoItem(IconData icon, String title, String subtitle) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.75),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Icon(icon, color: const Color(0xFF1D4ED8)),
         ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: const TextStyle(color: Color(0xFF475569), height: 1.45),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 78,
+            height: 78,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+              ),
+              borderRadius: BorderRadius.circular(26),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF2563EB).withOpacity(0.28),
+                  blurRadius: 30,
+                  offset: const Offset(0, 16),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.groups_2_rounded,
+              color: Colors.white,
+              size: 38,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'JV Líderes',
+            style: TextStyle(
+              fontSize: 40,
+              height: 1.05,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Un panel moderno para administrar líderes, reportes y registros con Firebase en tiempo real.',
+            style: TextStyle(
+              fontSize: 16,
+              color: Color(0xFF475569),
+              height: 1.55,
+            ),
+          ),
+          const SizedBox(height: 30),
+          _infoItem(
+            Icons.security_rounded,
+            'Acceso seguro',
+            'Inicio de sesión y creación de líderes conectados con Firebase Authentication.',
+          ),
+          const SizedBox(height: 18),
+          _infoItem(
+            Icons.dashboard_customize_rounded,
+            'Panel visual',
+            'Dashboard claro, profesional y preparado para crecer con tu ministerio.',
+          ),
+          const SizedBox(height: 18),
+          _infoItem(
+            Icons.cloud_done_rounded,
+            'Datos en vivo',
+            'Todo sincronizado con Firestore en la base mora2.',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LoginFormCard extends StatelessWidget {
+  final TextEditingController emailCtrl;
+  final TextEditingController passCtrl;
+  final bool loading;
+  final String? errorText;
+  final bool obscurePassword;
+  final VoidCallback onTogglePassword;
+  final VoidCallback onSignIn;
+  final VoidCallback onCreateLeader;
+
+  const LoginFormCard({
+    super.key,
+    required this.emailCtrl,
+    required this.passCtrl,
+    required this.loading,
+    required this.errorText,
+    required this.obscurePassword,
+    required this.onTogglePassword,
+    required this.onSignIn,
+    required this.onCreateLeader,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      padding: const EdgeInsets.all(30),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+              ),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: const Icon(
+              Icons.lock_person_rounded,
+              color: Colors.white,
+              size: 32,
+            ),
+          ),
+          const SizedBox(height: 18),
+          const Text(
+            'Bienvenido',
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Inicia sesión para acceder al panel administrativo',
+            style: TextStyle(color: Color(0xFF64748B)),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          TextField(
+            controller: emailCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Correo',
+              prefixIcon: Icon(Icons.email_outlined),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: passCtrl,
+            obscureText: obscurePassword,
+            decoration: InputDecoration(
+              labelText: 'Contraseña',
+              prefixIcon: const Icon(Icons.lock_outline),
+              suffixIcon: IconButton(
+                onPressed: onTogglePassword,
+                icon: Icon(
+                  obscurePassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                ),
+              ),
+            ),
+          ),
+          if (errorText != null) ...[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEE2E2),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                errorText!,
+                style: const TextStyle(
+                  color: Color(0xFFB91C1C),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: loading ? null : onSignIn,
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              child: loading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Iniciar sesión'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: loading ? null : onCreateLeader,
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              child: const Text('Crear usuario líder'),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -466,12 +902,14 @@ class ActivityEntry {
   final String subtitle;
   final String time;
   final Color color;
+  final IconData icon;
 
   const ActivityEntry({
     required this.title,
     required this.subtitle,
     required this.time,
     required this.color,
+    required this.icon,
   });
 }
 
@@ -480,57 +918,36 @@ class ActivityEntry {
 /* -------------------------------------------------------------------------- */
 
 class FirestoreService {
-  static final _db = FirebaseFirestore.instance;
+  static final FirebaseFirestore _db = FirebaseFirestore.instanceFor(
+    app: Firebase.app(),
+    databaseId: 'mora2',
+  );
 
   static Stream<List<LeaderRecord>> leadersStream() {
     return _db
-        .collection('leaders')
+        .collection(AppCollections.leaders)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) {
-          return snapshot.docs.map(LeaderRecord.fromDoc).toList();
-        });
+        .map((snapshot) => snapshot.docs.map(LeaderRecord.fromDoc).toList());
   }
 
   static Stream<List<RegistroRecord>> registrosStream() {
     return _db
-        .collection('registros')
+        .collection(AppCollections.registros)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) {
-          return snapshot.docs.map(RegistroRecord.fromDoc).toList();
-        });
+        .map((snapshot) => snapshot.docs.map(RegistroRecord.fromDoc).toList());
   }
 
   static Stream<List<ReporteRecord>> reportesStream() {
     return _db
-        .collection('reportes')
+        .collection(AppCollections.reportes)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) {
-          return snapshot.docs.map(ReporteRecord.fromDoc).toList();
-        });
+        .map((snapshot) => snapshot.docs.map(ReporteRecord.fromDoc).toList());
   }
 
-  static Future<void> addLeader({
-    required String name,
-    required String email,
-    required String zone,
-    required int reports,
-    required String status,
-  }) async {
-    await _db.collection('leaders').add({
-      'name': name,
-      'email': email,
-      'zone': zone,
-      'reports': reports,
-      'status': status,
-      'lastActivity': Timestamp.now(),
-      'createdAt': Timestamp.now(),
-    });
-  }
-
-  static Future<void> updateLeader({
+  static Future<void> upsertLeaderProfile({
     required String leaderId,
     required String name,
     required String email,
@@ -538,36 +955,16 @@ class FirestoreService {
     required int reports,
     required String status,
   }) async {
-    await _db.collection('leaders').doc(leaderId).update({
+    await _db.collection(AppCollections.leaders).doc(leaderId).set({
       'name': name,
       'email': email,
       'zone': zone,
       'reports': reports,
       'status': status,
-      'lastActivity': Timestamp.now(),
-      'updatedAt': Timestamp.now(),
-    });
-  }
-
-  static Future<void> deleteLeader({required String leaderId}) async {
-    final registros = await _db
-        .collection('registros')
-        .where('leaderId', isEqualTo: leaderId)
-        .get();
-    final reportes = await _db
-        .collection('reportes')
-        .where('leaderId', isEqualTo: leaderId)
-        .get();
-
-    final batch = _db.batch();
-    for (final doc in registros.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in reportes.docs) {
-      batch.delete(doc.reference);
-    }
-    batch.delete(_db.collection('leaders').doc(leaderId));
-    await batch.commit();
+      'role': 'leader',
+      'lastActivity': FieldValue.serverTimestamp(),
+      'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   static Future<void> addRegistro({
@@ -578,18 +975,18 @@ class FirestoreService {
     required String description,
     required String status,
   }) async {
-    await _db.collection('registros').add({
+    await _db.collection(AppCollections.registros).add({
       'leaderId': leaderId,
       'leaderName': leaderName,
       'zone': zone,
       'type': type,
       'description': description,
       'status': status,
-      'createdAt': Timestamp.now(),
+      'createdAt': FieldValue.serverTimestamp(),
     });
 
-    await _db.collection('leaders').doc(leaderId).set({
-      'lastActivity': Timestamp.now(),
+    await _db.collection(AppCollections.leaders).doc(leaderId).set({
+      'lastActivity': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
@@ -602,23 +999,23 @@ class FirestoreService {
     required String description,
     required String status,
   }) async {
-    await _db.collection('registros').doc(registroId).update({
+    await _db.collection(AppCollections.registros).doc(registroId).update({
       'leaderId': leaderId,
       'leaderName': leaderName,
       'zone': zone,
       'type': type,
       'description': description,
       'status': status,
-      'updatedAt': Timestamp.now(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    await _db.collection('leaders').doc(leaderId).set({
-      'lastActivity': Timestamp.now(),
+    await _db.collection(AppCollections.leaders).doc(leaderId).set({
+      'lastActivity': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
   static Future<void> deleteRegistro({required String registroId}) async {
-    await _db.collection('registros').doc(registroId).delete();
+    await _db.collection(AppCollections.registros).doc(registroId).delete();
   }
 
   static Future<void> addReporte({
@@ -630,7 +1027,7 @@ class FirestoreService {
     required int newPeople,
     required String status,
   }) async {
-    await _db.collection('reportes').add({
+    await _db.collection(AppCollections.reportes).add({
       'leaderId': leaderId,
       'leaderName': leaderName,
       'zone': zone,
@@ -638,67 +1035,13 @@ class FirestoreService {
       'attendance': attendance,
       'newPeople': newPeople,
       'status': status,
-      'createdAt': Timestamp.now(),
+      'createdAt': FieldValue.serverTimestamp(),
     });
 
-    await _db.collection('leaders').doc(leaderId).set({
+    await _db.collection(AppCollections.leaders).doc(leaderId).set({
       'reports': FieldValue.increment(1),
-      'lastActivity': Timestamp.now(),
+      'lastActivity': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
-  }
-
-  static Future<void> updateReporte({
-    required String reporteId,
-    required String oldLeaderId,
-    required String leaderId,
-    required String leaderName,
-    required String zone,
-    required String week,
-    required int attendance,
-    required int newPeople,
-    required String status,
-  }) async {
-    final batch = _db.batch();
-
-    batch.update(_db.collection('reportes').doc(reporteId), {
-      'leaderId': leaderId,
-      'leaderName': leaderName,
-      'zone': zone,
-      'week': week,
-      'attendance': attendance,
-      'newPeople': newPeople,
-      'status': status,
-      'updatedAt': Timestamp.now(),
-    });
-
-    if (oldLeaderId != leaderId) {
-      batch.set(_db.collection('leaders').doc(oldLeaderId), {
-        'reports': FieldValue.increment(-1),
-      }, SetOptions(merge: true));
-      batch.set(_db.collection('leaders').doc(leaderId), {
-        'reports': FieldValue.increment(1),
-        'lastActivity': Timestamp.now(),
-      }, SetOptions(merge: true));
-    } else {
-      batch.set(_db.collection('leaders').doc(leaderId), {
-        'lastActivity': Timestamp.now(),
-      }, SetOptions(merge: true));
-    }
-
-    await batch.commit();
-  }
-
-  static Future<void> deleteReporte({
-    required String reporteId,
-    required String leaderId,
-  }) async {
-    final batch = _db.batch();
-    batch.delete(_db.collection('reportes').doc(reporteId));
-    batch.set(_db.collection('leaders').doc(leaderId), {
-      'reports': FieldValue.increment(-1),
-      'lastActivity': Timestamp.now(),
-    }, SetOptions(merge: true));
-    await batch.commit();
   }
 }
 
@@ -711,33 +1054,6 @@ const _navItems = <NavItem>[
   NavItem('Registros', Icons.receipt_long_rounded),
   NavItem('Reportes', Icons.bar_chart_rounded),
   NavItem('Configuración', Icons.settings_rounded),
-];
-
-const _activities = <ActivityEntry>[
-  ActivityEntry(
-    title: 'María Gómez',
-    subtitle: 'Subió el reporte semanal',
-    time: '12 min',
-    color: Color(0xFF059669),
-  ),
-  ActivityEntry(
-    title: 'Carlos Pérez',
-    subtitle: 'Actualizó asistencia de líderes',
-    time: '38 min',
-    color: Color(0xFF2563EB),
-  ),
-  ActivityEntry(
-    title: 'Ana Martínez',
-    subtitle: 'Quedó marcada para revisión',
-    time: '1 h',
-    color: Color(0xFFF59E0B),
-  ),
-  ActivityEntry(
-    title: 'Sofía Rodríguez',
-    subtitle: 'Cerró seguimiento pendiente',
-    time: '2 h',
-    color: Color(0xFF7C3AED),
-  ),
 ];
 
 const _weekTrend = <double>[12, 15, 13, 18, 17, 21, 24];
@@ -875,7 +1191,7 @@ class DesktopRail extends StatelessWidget {
         selectedIndex: selectedIndex,
         onDestinationSelected: onSelect,
         minWidth: 76,
-        minExtendedWidth: 230,
+        minExtendedWidth: 235,
         groupAlignment: -0.9,
         indicatorColor: const Color(0xFFDCE7FF),
         selectedIconTheme: const IconThemeData(
@@ -893,13 +1209,13 @@ class DesktopRail extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 46,
-                      height: 46,
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
                         ),
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(18),
                       ),
                       child: const Icon(Icons.groups_2, color: Colors.white),
                     ),
@@ -911,7 +1227,7 @@ class DesktopRail extends StatelessWidget {
                         Text(
                           'JV Líderes',
                           style: TextStyle(
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w900,
                             fontSize: 16,
                           ),
                         ),
@@ -928,13 +1244,13 @@ class DesktopRail extends StatelessWidget {
                   ],
                 )
               : Container(
-                  width: 46,
-                  height: 46,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
                     ),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(18),
                   ),
                   child: const Icon(Icons.groups_2, color: Colors.white),
                 ),
@@ -1011,7 +1327,7 @@ class AppDrawer extends StatelessWidget {
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 22,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
                 SizedBox(height: 4),
@@ -1059,7 +1375,7 @@ class AppDrawer extends StatelessWidget {
 /*                               DASHBOARD HOME                               */
 /* -------------------------------------------------------------------------- */
 
-class DashboardHomePage extends StatefulWidget {
+class DashboardHomePage extends StatelessWidget {
   final bool isDesktop;
   final bool isTablet;
 
@@ -1069,38 +1385,24 @@ class DashboardHomePage extends StatefulWidget {
     required this.isTablet,
   });
 
-  @override
-  State<DashboardHomePage> createState() => _DashboardHomePageState();
-}
+  List<ActivityEntry> _buildActivities(List<LeaderRecord> leaders) {
+    return leaders.take(4).map((leader) {
+      final status = leader.status.toLowerCase();
+      final color = status == 'activo'
+          ? const Color(0xFF059669)
+          : status == 'pendiente'
+          ? const Color(0xFFF59E0B)
+          : const Color(0xFF7C3AED);
 
-class _DashboardHomePageState extends State<DashboardHomePage> {
-  final searchCtrl = TextEditingController();
-  String selectedZone = 'Todas';
-  String selectedStatus = 'Todos';
-
-  @override
-  void dispose() {
-    searchCtrl.dispose();
-    super.dispose();
-  }
-
-  List<LeaderRecord> _applyFilters(List<LeaderRecord> leaders) {
-    final query = searchCtrl.text.trim().toLowerCase();
-
-    return leaders.where((leader) {
-      final matchesSearch =
-          query.isEmpty ||
-          leader.name.toLowerCase().contains(query) ||
-          leader.email.toLowerCase().contains(query) ||
-          leader.zone.toLowerCase().contains(query) ||
-          leader.status.toLowerCase().contains(query);
-
-      final matchesZone =
-          selectedZone == 'Todas' || leader.zone == selectedZone;
-      final matchesStatus =
-          selectedStatus == 'Todos' || leader.status == selectedStatus;
-
-      return matchesSearch && matchesZone && matchesStatus;
+      return ActivityEntry(
+        title: leader.name,
+        subtitle: 'Estado actual: ${leader.status}',
+        time: leader.lastActivity == null
+            ? 'Sin fecha'
+            : '${leader.lastActivity!.day}/${leader.lastActivity!.month}',
+        color: color,
+        icon: Icons.person_outline_rounded,
+      );
     }).toList();
   }
 
@@ -1118,8 +1420,6 @@ class _DashboardHomePageState extends State<DashboardHomePage> {
         }
 
         final leaders = snapshot.data!;
-        final filteredLeaders = _applyFilters(leaders);
-
         final activeCount = leaders
             .where((e) => e.status.toLowerCase() == 'activo')
             .length;
@@ -1130,6 +1430,7 @@ class _DashboardHomePageState extends State<DashboardHomePage> {
             .where((e) => e.status.toLowerCase().contains('revisión'))
             .length;
         final totalReports = leaders.fold<int>(0, (sum, e) => sum + e.reports);
+        final activities = _buildActivities(leaders);
 
         final stats = [
           DashboardStat(
@@ -1163,18 +1464,18 @@ class _DashboardHomePageState extends State<DashboardHomePage> {
         ];
 
         return SingleChildScrollView(
-          padding: EdgeInsets.all(widget.isDesktop ? 28 : 20),
+          padding: EdgeInsets.all(isDesktop ? 28 : 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               PageHeader(
-                isDesktop: widget.isDesktop,
+                isDesktop: isDesktop,
                 title: 'Dashboard General',
                 subtitle: 'Resumen visual de líderes, reportes y seguimiento.',
               ),
               const SizedBox(height: 20),
               HeroBanner(
-                isTablet: widget.isTablet,
+                isTablet: isTablet,
                 totalLeaders: leaders.length,
                 totalReports: totalReports,
                 completionPercent: leaders.isEmpty
@@ -1187,14 +1488,10 @@ class _DashboardHomePageState extends State<DashboardHomePage> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: widget.isDesktop
-                      ? 4
-                      : (widget.isTablet ? 2 : 1),
+                  crossAxisCount: isDesktop ? 4 : (isTablet ? 2 : 1),
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
-                  childAspectRatio: widget.isDesktop
-                      ? 2.15
-                      : (widget.isTablet ? 2.25 : 2.5),
+                  childAspectRatio: isDesktop ? 2.15 : (isTablet ? 2.25 : 2.5),
                 ),
                 itemBuilder: (context, index) {
                   return StatCard(stat: stats[index]);
@@ -1202,25 +1499,11 @@ class _DashboardHomePageState extends State<DashboardHomePage> {
               ),
               const SizedBox(height: 20),
               DashboardFiltersCard(
-                isTablet: widget.isTablet,
-                leadersCount: filteredLeaders.length,
-                searchCtrl: searchCtrl,
-                selectedZone: selectedZone,
-                selectedStatus: selectedStatus,
-                onSearchChanged: (_) => setState(() {}),
-                onZoneChanged: (value) => setState(() => selectedZone = value!),
-                onStatusChanged: (value) =>
-                    setState(() => selectedStatus = value!),
-                onClear: () {
-                  setState(() {
-                    searchCtrl.clear();
-                    selectedZone = 'Todas';
-                    selectedStatus = 'Todos';
-                  });
-                },
+                isTablet: isTablet,
+                leadersCount: leaders.length,
               ),
               const SizedBox(height: 20),
-              if (widget.isDesktop)
+              if (isDesktop)
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1230,21 +1513,23 @@ class _DashboardHomePageState extends State<DashboardHomePage> {
                         children: [
                           DashboardChartsGrid(isWide: true),
                           const SizedBox(height: 20),
-                          LeadersSection(
-                            tableView: true,
-                            leaders: filteredLeaders,
-                          ),
+                          LeadersSection(tableView: true, leaders: leaders),
                         ],
                       ),
                     ),
                     const SizedBox(width: 20),
-                    const Expanded(
+                    Expanded(
                       flex: 1,
                       child: Column(
                         children: [
-                          ActivityCard(),
-                          SizedBox(height: 20),
-                          CompletionCard(),
+                          ActivityCard(activities: activities),
+                          const SizedBox(height: 20),
+                          CompletionCard(
+                            leadersCount: leaders.length,
+                            activeCount: activeCount,
+                            pendingCount: pendingCount,
+                            totalReports: totalReports,
+                          ),
                         ],
                       ),
                     ),
@@ -1253,16 +1538,18 @@ class _DashboardHomePageState extends State<DashboardHomePage> {
               else
                 Column(
                   children: [
-                    DashboardChartsGrid(isWide: widget.isTablet),
+                    DashboardChartsGrid(isWide: isTablet),
                     const SizedBox(height: 20),
-                    const ActivityCard(),
+                    ActivityCard(activities: activities),
                     const SizedBox(height: 20),
-                    const CompletionCard(),
-                    const SizedBox(height: 20),
-                    LeadersSection(
-                      tableView: widget.isTablet,
-                      leaders: filteredLeaders,
+                    CompletionCard(
+                      leadersCount: leaders.length,
+                      activeCount: activeCount,
+                      pendingCount: pendingCount,
+                      totalReports: totalReports,
                     ),
+                    const SizedBox(height: 20),
+                    LeadersSection(tableView: isTablet, leaders: leaders),
                   ],
                 ),
             ],
@@ -1277,7 +1564,7 @@ class _DashboardHomePageState extends State<DashboardHomePage> {
 /*                                 REGISTROS                                  */
 /* -------------------------------------------------------------------------- */
 
-class RegistrosPage extends StatefulWidget {
+class RegistrosPage extends StatelessWidget {
   final bool isDesktop;
   final bool isTablet;
 
@@ -1287,46 +1574,9 @@ class RegistrosPage extends StatefulWidget {
     required this.isTablet,
   });
 
-  @override
-  State<RegistrosPage> createState() => _RegistrosPageState();
-}
-
-class _RegistrosPageState extends State<RegistrosPage> {
-  final searchCtrl = TextEditingController();
-  String selectedZone = 'Todas';
-  String selectedStatus = 'Todos';
-  String selectedType = 'Todos';
-
-  @override
-  void dispose() {
-    searchCtrl.dispose();
-    super.dispose();
-  }
-
   String _formatDate(DateTime? dt) {
     if (dt == null) return 'Sin fecha';
     return '${dt.day}/${dt.month}/${dt.year}';
-  }
-
-  List<RegistroRecord> _applyFilters(List<RegistroRecord> registros) {
-    final query = searchCtrl.text.trim().toLowerCase();
-
-    return registros.where((r) {
-      final matchesSearch =
-          query.isEmpty ||
-          r.leaderName.toLowerCase().contains(query) ||
-          r.zone.toLowerCase().contains(query) ||
-          r.type.toLowerCase().contains(query) ||
-          r.description.toLowerCase().contains(query) ||
-          r.status.toLowerCase().contains(query);
-
-      final matchesZone = selectedZone == 'Todas' || r.zone == selectedZone;
-      final matchesStatus =
-          selectedStatus == 'Todos' || r.status == selectedStatus;
-      final matchesType = selectedType == 'Todos' || r.type == selectedType;
-
-      return matchesSearch && matchesZone && matchesStatus && matchesType;
-    }).toList();
   }
 
   Future<void> _confirmDelete(
@@ -1359,18 +1609,22 @@ class _RegistrosPageState extends State<RegistrosPage> {
         await FirestoreService.deleteRegistro(registroId: registro.id);
 
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Registro eliminado correctamente')),
-          );
+          AppUi.showSnackBar(context, 'Registro eliminado correctamente');
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al eliminar registro: $e')),
-          );
+          AppUi.showSnackBar(context, 'Error al eliminar registro: $e');
         }
       }
     }
+  }
+
+  Widget _emptyState() {
+    return const EmptyStateCard(
+      icon: Icons.receipt_long_rounded,
+      title: 'Todavía no hay registros',
+      subtitle: 'Cuando agregues registros, aparecerán aquí en tiempo real.',
+    );
   }
 
   @override
@@ -1388,249 +1642,17 @@ class _RegistrosPageState extends State<RegistrosPage> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final registros = _applyFilters(snapshot.data!);
+        final registros = snapshot.data!;
 
         return SingleChildScrollView(
-          padding: EdgeInsets.all(widget.isDesktop ? 28 : 20),
+          padding: EdgeInsets.all(isDesktop ? 28 : 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               PageHeader(
-                isDesktop: widget.isDesktop,
+                isDesktop: isDesktop,
                 title: 'Registros',
                 subtitle: 'Colección real conectada a Firestore.',
-              ),
-              const SizedBox(height: 20),
-              SurfaceCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SectionHeader(
-                      title: 'Buscar y filtrar',
-                      subtitle: 'Filtra por texto, zona, tipo y estado.',
-                      pillText: '${registros.length} resultados',
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: searchCtrl,
-                      onChanged: (_) => setState(() {}),
-                      decoration: InputDecoration(
-                        hintText: 'Buscar líder, descripción, zona o estado...',
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        suffixIcon: IconButton(
-                          onPressed: () {
-                            setState(() {
-                              searchCtrl.clear();
-                              selectedZone = 'Todas';
-                              selectedStatus = 'Todos';
-                              selectedType = 'Todos';
-                            });
-                          },
-                          icon: const Icon(Icons.restart_alt_rounded),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (widget.isTablet)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: selectedZone,
-                              decoration: const InputDecoration(
-                                labelText: 'Zona',
-                              ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'Todas',
-                                  child: Text('Todas'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Zona 1',
-                                  child: Text('Zona 1'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Zona 2',
-                                  child: Text('Zona 2'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Zona 3',
-                                  child: Text('Zona 3'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Zona 4',
-                                  child: Text('Zona 4'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Zona 5',
-                                  child: Text('Zona 5'),
-                                ),
-                              ],
-                              onChanged: (v) =>
-                                  setState(() => selectedZone = v!),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: selectedType,
-                              decoration: const InputDecoration(
-                                labelText: 'Tipo',
-                              ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'Todos',
-                                  child: Text('Todos'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Asistencia',
-                                  child: Text('Asistencia'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Visita',
-                                  child: Text('Visita'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Seguimiento',
-                                  child: Text('Seguimiento'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Reunión',
-                                  child: Text('Reunión'),
-                                ),
-                              ],
-                              onChanged: (v) =>
-                                  setState(() => selectedType = v!),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: selectedStatus,
-                              decoration: const InputDecoration(
-                                labelText: 'Estado',
-                              ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'Todos',
-                                  child: Text('Todos'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Completado',
-                                  child: Text('Completado'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Pendiente',
-                                  child: Text('Pendiente'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'En revisión',
-                                  child: Text('En revisión'),
-                                ),
-                              ],
-                              onChanged: (v) =>
-                                  setState(() => selectedStatus = v!),
-                            ),
-                          ),
-                        ],
-                      )
-                    else
-                      Column(
-                        children: [
-                          DropdownButtonFormField<String>(
-                            initialValue: selectedZone,
-                            decoration: const InputDecoration(
-                              labelText: 'Zona',
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'Todas',
-                                child: Text('Todas'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Zona 1',
-                                child: Text('Zona 1'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Zona 2',
-                                child: Text('Zona 2'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Zona 3',
-                                child: Text('Zona 3'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Zona 4',
-                                child: Text('Zona 4'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Zona 5',
-                                child: Text('Zona 5'),
-                              ),
-                            ],
-                            onChanged: (v) => setState(() => selectedZone = v!),
-                          ),
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            initialValue: selectedType,
-                            decoration: const InputDecoration(
-                              labelText: 'Tipo',
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'Todos',
-                                child: Text('Todos'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Asistencia',
-                                child: Text('Asistencia'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Visita',
-                                child: Text('Visita'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Seguimiento',
-                                child: Text('Seguimiento'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Reunión',
-                                child: Text('Reunión'),
-                              ),
-                            ],
-                            onChanged: (v) => setState(() => selectedType = v!),
-                          ),
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            initialValue: selectedStatus,
-                            decoration: const InputDecoration(
-                              labelText: 'Estado',
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'Todos',
-                                child: Text('Todos'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Completado',
-                                child: Text('Completado'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Pendiente',
-                                child: Text('Pendiente'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'En revisión',
-                                child: Text('En revisión'),
-                              ),
-                            ],
-                            onChanged: (v) =>
-                                setState(() => selectedStatus = v!),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
               ),
               const SizedBox(height: 20),
               SurfaceCard(
@@ -1644,14 +1666,12 @@ class _RegistrosPageState extends State<RegistrosPage> {
                     ),
                     const SizedBox(height: 16),
                     if (registros.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(20),
-                        child: Text('No hay registros con esos filtros.'),
-                      )
-                    else if (widget.isTablet)
+                      _emptyState()
+                    else if (isTablet)
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: DataTable(
+                          columnSpacing: 28,
                           columns: const [
                             DataColumn(label: Text('Líder')),
                             DataColumn(label: Text('Zona')),
@@ -1673,12 +1693,10 @@ class _RegistrosPageState extends State<RegistrosPage> {
                                 DataCell(
                                   Row(
                                     children: [
-                                      IconButton(
+                                      SmallActionButton(
                                         tooltip: 'Editar',
-                                        icon: const Icon(
-                                          Icons.edit_rounded,
-                                          color: Color(0xFF2563EB),
-                                        ),
+                                        icon: Icons.edit_rounded,
+                                        color: const Color(0xFF2563EB),
                                         onPressed: () {
                                           showDialog(
                                             context: context,
@@ -1687,12 +1705,11 @@ class _RegistrosPageState extends State<RegistrosPage> {
                                           );
                                         },
                                       ),
-                                      IconButton(
+                                      const SizedBox(width: 8),
+                                      SmallActionButton(
                                         tooltip: 'Eliminar',
-                                        icon: const Icon(
-                                          Icons.delete_rounded,
-                                          color: Colors.red,
-                                        ),
+                                        icon: Icons.delete_rounded,
+                                        color: Colors.red,
                                         onPressed: () {
                                           _confirmDelete(context, r);
                                         },
@@ -1710,95 +1727,51 @@ class _RegistrosPageState extends State<RegistrosPage> {
                         children: registros.map((r) {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                            child: ModernInfoCard(
+                              icon: Icons.receipt_long_rounded,
+                              iconBg: const Color(0xFFDCE7FF),
+                              iconColor: const Color(0xFF1D4ED8),
+                              title: r.leaderName,
+                              subtitle: r.description,
+                              trailing: StatusBadge(status: r.status),
+                              chips: [
+                                InfoChip(
+                                  icon: Icons.place_outlined,
+                                  text: r.zone,
+                                ),
+                                InfoChip(
+                                  icon: Icons.category_outlined,
+                                  text: r.type,
+                                ),
+                                InfoChip(
+                                  icon: Icons.calendar_month_outlined,
+                                  text: _formatDate(r.createdAt),
+                                ),
+                              ],
+                              footer: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  Row(
-                                    children: [
-                                      const CircleAvatar(
-                                        backgroundColor: Color(0xFFDCE7FF),
-                                        child: Icon(
-                                          Icons.receipt_long_rounded,
-                                          color: Color(0xFF1D4ED8),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              r.leaderName,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                              ),
-                                            ),
-                                            Text(
-                                              r.description,
-                                              style: const TextStyle(
-                                                color: Color(0xFF64748B),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      StatusBadge(status: r.status),
-                                    ],
+                                  OutlinedButton.icon(
+                                    onPressed: () {
+                                      showDialog(
+                                        context: context,
+                                        builder: (_) =>
+                                            EditRegistroDialog(registro: r),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.edit_rounded),
+                                    label: const Text('Editar'),
                                   ),
-                                  const SizedBox(height: 12),
-                                  Wrap(
-                                    spacing: 10,
-                                    runSpacing: 10,
-                                    children: [
-                                      InfoChip(
-                                        icon: Icons.place_outlined,
-                                        text: r.zone,
-                                      ),
-                                      InfoChip(
-                                        icon: Icons.category_outlined,
-                                        text: r.type,
-                                      ),
-                                      InfoChip(
-                                        icon: Icons.calendar_month_outlined,
-                                        text: _formatDate(r.createdAt),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 14),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      OutlinedButton.icon(
-                                        onPressed: () {
-                                          showDialog(
-                                            context: context,
-                                            builder: (_) =>
-                                                EditRegistroDialog(registro: r),
-                                          );
-                                        },
-                                        icon: const Icon(Icons.edit_rounded),
-                                        label: const Text('Editar'),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      FilledButton.icon(
-                                        onPressed: () {
-                                          _confirmDelete(context, r);
-                                        },
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: Colors.red,
-                                        ),
-                                        icon: const Icon(Icons.delete_rounded),
-                                        label: const Text('Eliminar'),
-                                      ),
-                                    ],
+                                  const SizedBox(width: 10),
+                                  FilledButton.icon(
+                                    onPressed: () {
+                                      _confirmDelete(context, r);
+                                    },
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                    ),
+                                    icon: const Icon(Icons.delete_rounded),
+                                    label: const Text('Eliminar'),
                                   ),
                                 ],
                               ),
@@ -1817,7 +1790,11 @@ class _RegistrosPageState extends State<RegistrosPage> {
   }
 }
 
-class ReportesPage extends StatefulWidget {
+/* -------------------------------------------------------------------------- */
+/*                                  REPORTES                                  */
+/* -------------------------------------------------------------------------- */
+
+class ReportesPage extends StatelessWidget {
   final bool isDesktop;
   final bool isTablet;
 
@@ -1827,90 +1804,17 @@ class ReportesPage extends StatefulWidget {
     required this.isTablet,
   });
 
-  @override
-  State<ReportesPage> createState() => _ReportesPageState();
-}
-
-class _ReportesPageState extends State<ReportesPage> {
-  final searchCtrl = TextEditingController();
-  String selectedZone = 'Todas';
-  String selectedStatus = 'Todos';
-
-  @override
-  void dispose() {
-    searchCtrl.dispose();
-    super.dispose();
-  }
-
   String _formatDate(DateTime? dt) {
     if (dt == null) return 'Sin fecha';
     return '${dt.day}/${dt.month}/${dt.year}';
   }
 
-  List<ReporteRecord> _applyFilters(List<ReporteRecord> reportes) {
-    final query = searchCtrl.text.trim().toLowerCase();
-
-    return reportes.where((r) {
-      final matchesSearch =
-          query.isEmpty ||
-          r.leaderName.toLowerCase().contains(query) ||
-          r.zone.toLowerCase().contains(query) ||
-          r.week.toLowerCase().contains(query) ||
-          r.status.toLowerCase().contains(query);
-
-      final matchesZone = selectedZone == 'Todas' || r.zone == selectedZone;
-      final matchesStatus =
-          selectedStatus == 'Todos' || r.status == selectedStatus;
-
-      return matchesSearch && matchesZone && matchesStatus;
-    }).toList();
-  }
-
-  Future<void> _confirmDelete(
-    BuildContext context,
-    ReporteRecord reporte,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Eliminar reporte'),
-        content: Text(
-          '¿Seguro que deseas eliminar el reporte de ${reporte.leaderName}?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
+  Widget _emptyState() {
+    return const EmptyStateCard(
+      icon: Icons.bar_chart_rounded,
+      title: 'Todavía no hay reportes',
+      subtitle: 'Cuando agregues reportes, aparecerán aquí en tiempo real.',
     );
-
-    if (confirmed == true) {
-      try {
-        await FirestoreService.deleteReporte(
-          reporteId: reporte.id,
-          leaderId: reporte.leaderId,
-        );
-
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Reporte eliminado correctamente')),
-          );
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al eliminar reporte: $e')),
-          );
-        }
-      }
-    }
   }
 
   @override
@@ -1928,7 +1832,7 @@ class _ReportesPageState extends State<ReportesPage> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final reportes = _applyFilters(snapshot.data!);
+        final reportes = snapshot.data!;
         final totalAttendance = reportes.fold<int>(
           0,
           (sum, item) => sum + item.attendance,
@@ -1939,197 +1843,29 @@ class _ReportesPageState extends State<ReportesPage> {
         );
 
         return SingleChildScrollView(
-          padding: EdgeInsets.all(widget.isDesktop ? 28 : 20),
+          padding: EdgeInsets.all(isDesktop ? 28 : 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               PageHeader(
-                isDesktop: widget.isDesktop,
+                isDesktop: isDesktop,
                 title: 'Reportes',
                 subtitle: 'Colección real conectada a Firestore.',
               ),
               const SizedBox(height: 20),
-              SurfaceCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SectionHeader(
-                      title: 'Buscar y filtrar',
-                      subtitle: 'Filtra por texto, zona y estado.',
-                      pillText: '${reportes.length} resultados',
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: searchCtrl,
-                      onChanged: (_) => setState(() {}),
-                      decoration: InputDecoration(
-                        hintText: 'Buscar líder, semana, zona o estado...',
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        suffixIcon: IconButton(
-                          onPressed: () {
-                            setState(() {
-                              searchCtrl.clear();
-                              selectedZone = 'Todas';
-                              selectedStatus = 'Todos';
-                            });
-                          },
-                          icon: const Icon(Icons.restart_alt_rounded),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (widget.isTablet)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: selectedZone,
-                              decoration: const InputDecoration(
-                                labelText: 'Zona',
-                              ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'Todas',
-                                  child: Text('Todas'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Zona 1',
-                                  child: Text('Zona 1'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Zona 2',
-                                  child: Text('Zona 2'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Zona 3',
-                                  child: Text('Zona 3'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Zona 4',
-                                  child: Text('Zona 4'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Zona 5',
-                                  child: Text('Zona 5'),
-                                ),
-                              ],
-                              onChanged: (v) =>
-                                  setState(() => selectedZone = v!),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: selectedStatus,
-                              decoration: const InputDecoration(
-                                labelText: 'Estado',
-                              ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'Todos',
-                                  child: Text('Todos'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Enviado',
-                                  child: Text('Enviado'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'Pendiente',
-                                  child: Text('Pendiente'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'En revisión',
-                                  child: Text('En revisión'),
-                                ),
-                              ],
-                              onChanged: (v) =>
-                                  setState(() => selectedStatus = v!),
-                            ),
-                          ),
-                        ],
-                      )
-                    else
-                      Column(
-                        children: [
-                          DropdownButtonFormField<String>(
-                            initialValue: selectedZone,
-                            decoration: const InputDecoration(
-                              labelText: 'Zona',
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'Todas',
-                                child: Text('Todas'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Zona 1',
-                                child: Text('Zona 1'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Zona 2',
-                                child: Text('Zona 2'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Zona 3',
-                                child: Text('Zona 3'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Zona 4',
-                                child: Text('Zona 4'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Zona 5',
-                                child: Text('Zona 5'),
-                              ),
-                            ],
-                            onChanged: (v) => setState(() => selectedZone = v!),
-                          ),
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            initialValue: selectedStatus,
-                            decoration: const InputDecoration(
-                              labelText: 'Estado',
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'Todos',
-                                child: Text('Todos'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Enviado',
-                                child: Text('Enviado'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Pendiente',
-                                child: Text('Pendiente'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'En revisión',
-                                child: Text('En revisión'),
-                              ),
-                            ],
-                            onChanged: (v) =>
-                                setState(() => selectedStatus = v!),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
               GridView.count(
-                crossAxisCount: widget.isDesktop ? 3 : 1,
+                crossAxisCount: isDesktop ? 3 : 1,
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: widget.isDesktop ? 2.4 : 2.8,
+                childAspectRatio: isDesktop ? 2.4 : 2.8,
                 children: [
                   StatCard(
                     stat: DashboardStat(
                       title: 'Total reportes',
                       value: '${reportes.length}',
-                      change: 'filtrados',
+                      change: 'registrados',
                       icon: Icons.assessment_outlined,
                       color: const Color(0xFF2563EB),
                     ),
@@ -2166,14 +1902,12 @@ class _ReportesPageState extends State<ReportesPage> {
                     ),
                     const SizedBox(height: 16),
                     if (reportes.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(20),
-                        child: Text('No hay reportes con esos filtros.'),
-                      )
-                    else if (widget.isTablet)
+                      _emptyState()
+                    else if (isTablet)
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: DataTable(
+                          columnSpacing: 28,
                           columns: const [
                             DataColumn(label: Text('Líder')),
                             DataColumn(label: Text('Zona')),
@@ -2182,7 +1916,6 @@ class _ReportesPageState extends State<ReportesPage> {
                             DataColumn(label: Text('Nuevos')),
                             DataColumn(label: Text('Estado')),
                             DataColumn(label: Text('Fecha')),
-                            DataColumn(label: Text('Acciones')),
                           ],
                           rows: reportes.map((r) {
                             return DataRow(
@@ -2194,36 +1927,6 @@ class _ReportesPageState extends State<ReportesPage> {
                                 DataCell(Text('${r.newPeople}')),
                                 DataCell(StatusBadge(status: r.status)),
                                 DataCell(Text(_formatDate(r.createdAt))),
-                                DataCell(
-                                  Row(
-                                    children: [
-                                      IconButton(
-                                        tooltip: 'Editar',
-                                        icon: const Icon(
-                                          Icons.edit_rounded,
-                                          color: Color(0xFF2563EB),
-                                        ),
-                                        onPressed: () {
-                                          showDialog(
-                                            context: context,
-                                            builder: (_) =>
-                                                EditReporteDialog(reporte: r),
-                                          );
-                                        },
-                                      ),
-                                      IconButton(
-                                        tooltip: 'Eliminar',
-                                        icon: const Icon(
-                                          Icons.delete_rounded,
-                                          color: Colors.red,
-                                        ),
-                                        onPressed: () {
-                                          _confirmDelete(context, r);
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                ),
                               ],
                             );
                           }).toList(),
@@ -2234,98 +1937,27 @@ class _ReportesPageState extends State<ReportesPage> {
                         children: reportes.map((r) {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const CircleAvatar(
-                                        backgroundColor: Color(0xFFDCE7FF),
-                                        child: Icon(
-                                          Icons.bar_chart_rounded,
-                                          color: Color(0xFF1D4ED8),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              r.leaderName,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                              ),
-                                            ),
-                                            Text(
-                                              '${r.week} · ${r.zone}',
-                                              style: const TextStyle(
-                                                color: Color(0xFF64748B),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      StatusBadge(status: r.status),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Wrap(
-                                    spacing: 10,
-                                    runSpacing: 10,
-                                    children: [
-                                      InfoChip(
-                                        icon: Icons.people_outline,
-                                        text: 'Asistencia: ${r.attendance}',
-                                      ),
-                                      InfoChip(
-                                        icon: Icons.person_add_alt,
-                                        text: 'Nuevos: ${r.newPeople}',
-                                      ),
-                                      InfoChip(
-                                        icon: Icons.calendar_month_outlined,
-                                        text: _formatDate(r.createdAt),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 14),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      OutlinedButton.icon(
-                                        onPressed: () {
-                                          showDialog(
-                                            context: context,
-                                            builder: (_) =>
-                                                EditReporteDialog(reporte: r),
-                                          );
-                                        },
-                                        icon: const Icon(Icons.edit_rounded),
-                                        label: const Text('Editar'),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      FilledButton.icon(
-                                        onPressed: () {
-                                          _confirmDelete(context, r);
-                                        },
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: Colors.red,
-                                        ),
-                                        icon: const Icon(Icons.delete_rounded),
-                                        label: const Text('Eliminar'),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
+                            child: ModernInfoCard(
+                              icon: Icons.bar_chart_rounded,
+                              iconBg: const Color(0xFFDCE7FF),
+                              iconColor: const Color(0xFF1D4ED8),
+                              title: r.leaderName,
+                              subtitle: '${r.week} · ${r.zone}',
+                              trailing: StatusBadge(status: r.status),
+                              chips: [
+                                InfoChip(
+                                  icon: Icons.people_outline,
+                                  text: 'Asistencia: ${r.attendance}',
+                                ),
+                                InfoChip(
+                                  icon: Icons.person_add_alt,
+                                  text: 'Nuevos: ${r.newPeople}',
+                                ),
+                                InfoChip(
+                                  icon: Icons.calendar_month_outlined,
+                                  text: _formatDate(r.createdAt),
+                                ),
+                              ],
                             ),
                           );
                         }).toList(),
@@ -2340,6 +1972,10 @@ class _ReportesPageState extends State<ReportesPage> {
     );
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/*                              PLACEHOLDER PAGE                              */
+/* -------------------------------------------------------------------------- */
 
 class ModulePlaceholderPage extends StatelessWidget {
   final bool isDesktop;
@@ -2370,21 +2006,27 @@ class ModulePlaceholderPage extends StatelessWidget {
               child: Column(
                 children: [
                   Container(
-                    width: 76,
-                    height: 76,
+                    width: 80,
+                    height: 80,
                     decoration: BoxDecoration(
                       color: const Color(0xFFDCE7FF),
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(26),
                     ),
-                    child: Icon(icon, size: 36, color: const Color(0xFF1D4ED8)),
+                    child: Icon(icon, size: 38, color: const Color(0xFF1D4ED8)),
                   ),
                   const SizedBox(height: 18),
                   Text(
                     '$title listo para conectar',
                     style: const TextStyle(
                       fontSize: 24,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w900,
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(color: Color(0xFF64748B)),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
@@ -2433,8 +2075,8 @@ class PageHeader extends StatelessWidget {
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 30,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
               const SizedBox(height: 4),
@@ -2450,10 +2092,16 @@ class PageHeader extends StatelessWidget {
           onPressed: () {},
         ),
         const SizedBox(width: 12),
-        const CircleAvatar(
-          radius: 22,
-          backgroundColor: Color(0xFFDCE7FF),
-          child: Icon(Icons.person, color: Color(0xFF1D4ED8)),
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+            ),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: const Icon(Icons.person, color: Colors.white),
         ),
       ],
     );
@@ -2505,14 +2153,15 @@ class SurfaceCard extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 30,
+            offset: const Offset(0, 14),
           ),
         ],
+        border: Border.all(color: const Color(0xFFF1F5F9)),
       ),
       child: child,
     );
@@ -2543,7 +2192,7 @@ class SectionHeader extends StatelessWidget {
                 title,
                 style: const TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
               const SizedBox(height: 4),
@@ -2567,6 +2216,162 @@ class SectionHeader extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class EmptyStateCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const EmptyStateCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 34),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 74,
+            height: 74,
+            decoration: BoxDecoration(
+              color: const Color(0xFFDCE7FF),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Icon(icon, size: 34, color: const Color(0xFF1D4ED8)),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: const TextStyle(color: Color(0xFF64748B), height: 1.45),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ModernInfoCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconBg;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+  final List<Widget> chips;
+  final Widget? footer;
+
+  const ModernInfoCard({
+    super.key,
+    required this.icon,
+    required this.iconBg,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+    this.chips = const [],
+    this.footer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: iconBg,
+                child: Icon(icon, color: iconColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+              if (trailing != null) trailing!,
+            ],
+          ),
+          if (chips.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(spacing: 10, runSpacing: 10, children: chips),
+          ],
+          if (footer != null) ...[const SizedBox(height: 14), footer!],
+        ],
+      ),
+    );
+  }
+}
+
+class SmallActionButton extends StatelessWidget {
+  final String tooltip;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onPressed;
+
+  const SmallActionButton({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.color,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+      ),
     );
   }
 }
@@ -2607,7 +2412,7 @@ class HeroBanner extends StatelessWidget {
             color: Colors.white,
             fontSize: 30,
             height: 1.1,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w900,
           ),
         ),
         const SizedBox(height: 10),
@@ -2641,7 +2446,7 @@ class HeroBanner extends StatelessWidget {
       width: 250,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
+        color: Colors.white.withOpacity(0.14),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
@@ -2681,7 +2486,7 @@ class HeroBanner extends StatelessWidget {
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -2706,6 +2511,13 @@ class HeroBanner extends StatelessWidget {
           colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
         ),
         borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2563EB).withOpacity(0.24),
+            blurRadius: 30,
+            offset: const Offset(0, 16),
+          ),
+        ],
       ),
       child: isTablet
           ? Row(
@@ -2798,7 +2610,7 @@ class StatCard extends StatelessWidget {
                   stat.value,
                   style: const TextStyle(
                     fontSize: 26,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -2826,61 +2638,15 @@ class StatCard extends StatelessWidget {
 class DashboardFiltersCard extends StatelessWidget {
   final bool isTablet;
   final int leadersCount;
-  final TextEditingController searchCtrl;
-  final String selectedZone;
-  final String selectedStatus;
-  final ValueChanged<String> onSearchChanged;
-  final ValueChanged<String?> onZoneChanged;
-  final ValueChanged<String?> onStatusChanged;
-  final VoidCallback onClear;
 
   const DashboardFiltersCard({
     super.key,
     required this.isTablet,
     required this.leadersCount,
-    required this.searchCtrl,
-    required this.selectedZone,
-    required this.selectedStatus,
-    required this.onSearchChanged,
-    required this.onZoneChanged,
-    required this.onStatusChanged,
-    required this.onClear,
   });
 
   @override
   Widget build(BuildContext context) {
-    final zoneDropdown = DropdownButtonFormField<String>(
-      initialValue: selectedZone,
-      decoration: const InputDecoration(
-        labelText: 'Zona',
-        prefixIcon: Icon(Icons.place_outlined),
-      ),
-      items: const [
-        DropdownMenuItem(value: 'Todas', child: Text('Todas')),
-        DropdownMenuItem(value: 'Zona 1', child: Text('Zona 1')),
-        DropdownMenuItem(value: 'Zona 2', child: Text('Zona 2')),
-        DropdownMenuItem(value: 'Zona 3', child: Text('Zona 3')),
-        DropdownMenuItem(value: 'Zona 4', child: Text('Zona 4')),
-        DropdownMenuItem(value: 'Zona 5', child: Text('Zona 5')),
-      ],
-      onChanged: onZoneChanged,
-    );
-
-    final statusDropdown = DropdownButtonFormField<String>(
-      initialValue: selectedStatus,
-      decoration: const InputDecoration(
-        labelText: 'Estado',
-        prefixIcon: Icon(Icons.flag_outlined),
-      ),
-      items: const [
-        DropdownMenuItem(value: 'Todos', child: Text('Todos')),
-        DropdownMenuItem(value: 'Activo', child: Text('Activo')),
-        DropdownMenuItem(value: 'Pendiente', child: Text('Pendiente')),
-        DropdownMenuItem(value: 'En revisión', child: Text('En revisión')),
-      ],
-      onChanged: onStatusChanged,
-    );
-
     return SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2888,62 +2654,61 @@ class DashboardFiltersCard extends StatelessWidget {
           SectionHeader(
             title: 'Búsqueda y filtros',
             subtitle: 'Conectado a Firestore.',
-            pillText: '$leadersCount resultados',
+            pillText: '$leadersCount líderes',
           ),
           const SizedBox(height: 16),
-          TextField(
-            controller: searchCtrl,
-            onChanged: onSearchChanged,
-            decoration: InputDecoration(
-              hintText: 'Buscar líder, correo, zona o estado...',
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: IconButton(
-                onPressed: onClear,
-                icon: const Icon(Icons.restart_alt_rounded),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
           if (isTablet)
             Row(
               children: [
-                Expanded(child: zoneDropdown),
+                Expanded(
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Buscar líder, zona o estado...',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      suffixIcon: IconButton(
+                        onPressed: () {},
+                        icon: const Icon(Icons.tune_rounded),
+                      ),
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: statusDropdown),
+                FilledButton.icon(
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (_) => const AddLeaderDialog(),
+                  ),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Nuevo líder'),
+                ),
               ],
             )
           else
             Column(
               children: [
-                zoneDropdown,
+                TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Buscar líder, zona o estado...',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: IconButton(
+                      onPressed: () {},
+                      icon: const Icon(Icons.tune_rounded),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 12),
-                statusDropdown,
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => showDialog(
+                      context: context,
+                      builder: (_) => const AddLeaderDialog(),
+                    ),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Nuevo líder'),
+                  ),
+                ),
               ],
-            ),
-          const SizedBox(height: 12),
-          if (isTablet)
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.icon(
-                onPressed: () => showDialog(
-                  context: context,
-                  builder: (_) => const AddLeaderDialog(),
-                ),
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Nuevo líder'),
-              ),
-            )
-          else
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => showDialog(
-                  context: context,
-                  builder: (_) => const AddLeaderDialog(),
-                ),
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Nuevo líder'),
-              ),
             ),
         ],
       ),
@@ -3156,44 +2921,12 @@ class LeadersSection extends StatelessWidget {
     return '${dt.day}/${dt.month}/${dt.year}';
   }
 
-  Future<void> _confirmDelete(BuildContext context, LeaderRecord leader) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Eliminar líder'),
-        content: Text(
-          '¿Seguro que deseas eliminar a ${leader.name}? También se eliminarán sus registros y reportes.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
+  Widget _buildEmptyState() {
+    return const EmptyStateCard(
+      icon: Icons.groups_2_outlined,
+      title: 'No hay líderes todavía',
+      subtitle: 'Cuando crees líderes, aparecerán aquí en tiempo real.',
     );
-
-    if (confirmed == true) {
-      try {
-        await FirestoreService.deleteLeader(leaderId: leader.id);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Líder eliminado correctamente')),
-          );
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al eliminar líder: $e')),
-          );
-        }
-      }
-    }
   }
 
   @override
@@ -3209,21 +2942,19 @@ class LeadersSection extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           if (leaders.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(20),
-              child: Text('No hay líderes con esos filtros.'),
-            )
+            _buildEmptyState()
           else
-            tableView ? _buildTable(context) : _buildCards(context),
+            tableView ? _buildTable() : _buildCards(),
         ],
       ),
     );
   }
 
-  Widget _buildTable(BuildContext context) {
+  Widget _buildTable() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: DataTable(
+        columnSpacing: 28,
         columns: const [
           DataColumn(label: Text('Líder')),
           DataColumn(label: Text('Correo')),
@@ -3231,7 +2962,6 @@ class LeadersSection extends StatelessWidget {
           DataColumn(label: Text('Reportes')),
           DataColumn(label: Text('Última actividad')),
           DataColumn(label: Text('Estado')),
-          DataColumn(label: Text('Acciones')),
         ],
         rows: leaders.map((leader) {
           return DataRow(
@@ -3242,30 +2972,6 @@ class LeadersSection extends StatelessWidget {
               DataCell(Text('${leader.reports}')),
               DataCell(Text(_formatDate(leader.lastActivity))),
               DataCell(StatusBadge(status: leader.status)),
-              DataCell(
-                Row(
-                  children: [
-                    IconButton(
-                      tooltip: 'Editar',
-                      icon: const Icon(
-                        Icons.edit_rounded,
-                        color: Color(0xFF2563EB),
-                      ),
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (_) => EditLeaderDialog(leader: leader),
-                        );
-                      },
-                    ),
-                    IconButton(
-                      tooltip: 'Eliminar',
-                      icon: const Icon(Icons.delete_rounded, color: Colors.red),
-                      onPressed: () => _confirmDelete(context, leader),
-                    ),
-                  ],
-                ),
-              ),
             ],
           );
         }).toList(),
@@ -3273,88 +2979,29 @@ class LeadersSection extends StatelessWidget {
     );
   }
 
-  Widget _buildCards(BuildContext context) {
+  Widget _buildCards() {
     return Column(
       children: leaders.map((leader) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    const CircleAvatar(
-                      backgroundColor: Color(0xFFDCE7FF),
-                      child: Icon(Icons.person, color: Color(0xFF1D4ED8)),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            leader.name,
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                          Text(
-                            leader.email,
-                            style: const TextStyle(color: Color(0xFF64748B)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    StatusBadge(status: leader.status),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    InfoChip(icon: Icons.place_outlined, text: leader.zone),
-                    InfoChip(
-                      icon: Icons.description_outlined,
-                      text: '${leader.reports} reportes',
-                    ),
-                    InfoChip(
-                      icon: Icons.schedule_outlined,
-                      text: _formatDate(leader.lastActivity),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (_) => EditLeaderDialog(leader: leader),
-                        );
-                      },
-                      icon: const Icon(Icons.edit_rounded),
-                      label: const Text('Editar'),
-                    ),
-                    const SizedBox(width: 10),
-                    FilledButton.icon(
-                      onPressed: () => _confirmDelete(context, leader),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.red,
-                      ),
-                      icon: const Icon(Icons.delete_rounded),
-                      label: const Text('Eliminar'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+          child: ModernInfoCard(
+            icon: Icons.person,
+            iconBg: const Color(0xFFDCE7FF),
+            iconColor: const Color(0xFF1D4ED8),
+            title: leader.name,
+            subtitle: leader.email,
+            trailing: StatusBadge(status: leader.status),
+            chips: [
+              InfoChip(icon: Icons.place_outlined, text: leader.zone),
+              InfoChip(
+                icon: Icons.description_outlined,
+                text: '${leader.reports} reportes',
+              ),
+              InfoChip(
+                icon: Icons.schedule_outlined,
+                text: _formatDate(leader.lastActivity),
+              ),
+            ],
           ),
         );
       }).toList(),
@@ -3439,7 +3086,9 @@ class InfoChip extends StatelessWidget {
 /* -------------------------------------------------------------------------- */
 
 class ActivityCard extends StatelessWidget {
-  const ActivityCard({super.key});
+  final List<ActivityEntry> activities;
+
+  const ActivityCard({super.key, required this.activities});
 
   @override
   Widget build(BuildContext context) {
@@ -3449,50 +3098,60 @@ class ActivityCard extends StatelessWidget {
         children: [
           const SectionHeader(
             title: 'Actividad reciente',
-            subtitle: 'Sección visual',
+            subtitle: 'Basada en los líderes más recientes',
           ),
           const SizedBox(height: 18),
-          ...List.generate(_activities.length, (index) {
-            final activity = _activities[index];
+          if (activities.isEmpty)
+            const EmptyStateCard(
+              icon: Icons.timeline_rounded,
+              title: 'Sin actividad reciente',
+              subtitle:
+                  'A medida que trabajes con líderes, verás actividad aquí.',
+            )
+          else
+            ...List.generate(activities.length, (index) {
+              final activity = activities[index];
 
-            return Column(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 12,
-                      height: 12,
-                      margin: const EdgeInsets.only(top: 6),
-                      decoration: BoxDecoration(
-                        color: activity.color,
-                        shape: BoxShape.circle,
+              return Column(
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: activity.color.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(activity.icon, color: activity.color),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            activity.title,
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            activity.subtitle,
-                            style: const TextStyle(color: Color(0xFF64748B)),
-                          ),
-                        ],
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              activity.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              activity.subtitle,
+                              style: const TextStyle(color: Color(0xFF64748B)),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    Text(activity.time),
-                  ],
-                ),
-                if (index != _activities.length - 1) const Divider(height: 24),
-              ],
-            );
-          }),
+                      Text(activity.time),
+                    ],
+                  ),
+                  if (index != activities.length - 1) const Divider(height: 24),
+                ],
+              );
+            }),
         ],
       ),
     );
@@ -3500,26 +3159,49 @@ class ActivityCard extends StatelessWidget {
 }
 
 class CompletionCard extends StatelessWidget {
-  const CompletionCard({super.key});
+  final int leadersCount;
+  final int activeCount;
+  final int pendingCount;
+  final int totalReports;
+
+  const CompletionCard({
+    super.key,
+    required this.leadersCount,
+    required this.activeCount,
+    required this.pendingCount,
+    required this.totalReports,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return const SurfaceCard(
+    final double leadersPercent = leadersCount == 0
+        ? 0.0
+        : (activeCount / leadersCount).clamp(0.0, 1.0);
+
+    final double pendingPercent = leadersCount == 0
+        ? 0.0
+        : (pendingCount / leadersCount).clamp(0.0, 1.0);
+
+    final double reportsPercent = leadersCount == 0
+        ? 0.0
+        : (totalReports / (leadersCount * 2)).clamp(0.0, 1.0);
+
+    return SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SectionHeader(
+          const SectionHeader(
             title: 'Cumplimiento',
-            subtitle: 'Estado general visual',
+            subtitle: 'Resumen general del estado del panel',
           ),
-          SizedBox(height: 22),
-          Center(child: ProgressCircle()),
-          SizedBox(height: 24),
-          ProgressMetric(label: 'Reportes enviados', value: 0.86),
-          SizedBox(height: 16),
-          ProgressMetric(label: 'Asistencia registrada', value: 0.69),
-          SizedBox(height: 16),
-          ProgressMetric(label: 'Seguimientos cerrados', value: 0.58),
+          const SizedBox(height: 22),
+          Center(child: ProgressCircle(value: leadersPercent)),
+          const SizedBox(height: 24),
+          ProgressMetric(label: 'Líderes activos', value: leadersPercent),
+          const SizedBox(height: 16),
+          ProgressMetric(label: 'Pendientes', value: pendingPercent),
+          const SizedBox(height: 16),
+          ProgressMetric(label: 'Carga de reportes', value: reportsPercent),
         ],
       ),
     );
@@ -3527,11 +3209,15 @@ class CompletionCard extends StatelessWidget {
 }
 
 class ProgressCircle extends StatelessWidget {
-  const ProgressCircle({super.key});
+  final double value;
+
+  const ProgressCircle({super.key, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
+    final percent = (value * 100).round();
+
+    return SizedBox(
       width: 148,
       height: 148,
       child: Stack(
@@ -3539,21 +3225,29 @@ class ProgressCircle extends StatelessWidget {
         children: [
           SizedBox.expand(
             child: CircularProgressIndicator(
-              value: 0.73,
+              value: value,
               strokeWidth: 14,
-              backgroundColor: Color(0xFFE2E8F0),
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
+              backgroundColor: const Color(0xFFE2E8F0),
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Color(0xFF2563EB),
+              ),
             ),
           ),
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '73%',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+                '$percent%',
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
-              SizedBox(height: 4),
-              Text('completado', style: TextStyle(color: Color(0xFF64748B))),
+              const SizedBox(height: 4),
+              const Text(
+                'completado',
+                style: TextStyle(color: Color(0xFF64748B)),
+              ),
             ],
           ),
         ],
@@ -3611,17 +3305,18 @@ class _AddLeaderDialogState extends State<AddLeaderDialog> {
   final _formKey = GlobalKey<FormState>();
   final nameCtrl = TextEditingController();
   final emailCtrl = TextEditingController();
-  final reportsCtrl = TextEditingController(text: '0');
+  final passwordCtrl = TextEditingController();
 
-  String zone = 'Zona 1';
-  String status = 'Activo';
+  String zone = AppCatalogs.zones.first;
+  String status = AppCatalogs.leaderStatuses.first;
   bool loading = false;
+  bool obscurePassword = true;
 
   @override
   void dispose() {
     nameCtrl.dispose();
     emailCtrl.dispose();
-    reportsCtrl.dispose();
+    passwordCtrl.dispose();
     super.dispose();
   }
 
@@ -3631,22 +3326,25 @@ class _AddLeaderDialogState extends State<AddLeaderDialog> {
     setState(() => loading = true);
 
     try {
-      await FirestoreService.addLeader(
+      await AuthService.createLeaderAccount(
         name: nameCtrl.text.trim(),
         email: emailCtrl.text.trim(),
+        password: passwordCtrl.text.trim(),
         zone: zone,
-        reports: int.tryParse(reportsCtrl.text.trim()) ?? 0,
         status: status,
       );
 
-      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
+      Navigator.pop(context);
+      AppUi.showSnackBar(context, 'Líder creado correctamente');
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => loading = false);
+      AppUi.showSnackBar(context, AuthService.mapFirebaseAuthError(e));
     } catch (e) {
-      if (mounted) {
-        setState(() => loading = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error al guardar líder: $e')));
-      }
+      if (!mounted) return;
+      setState(() => loading = false);
+      AppUi.showSnackBar(context, 'Error al crear líder: $e');
     }
   }
 
@@ -3665,51 +3363,54 @@ class _AddLeaderDialogState extends State<AddLeaderDialog> {
                 TextFormField(
                   controller: nameCtrl,
                   decoration: const InputDecoration(labelText: 'Nombre'),
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Ingresa el nombre'
-                      : null,
+                  validator: (v) => Validators.requiredText(v, 'el nombre'),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: emailCtrl,
                   decoration: const InputDecoration(labelText: 'Correo'),
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Ingresa el correo'
-                      : null,
+                  validator: Validators.email,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: passwordCtrl,
+                  obscureText: obscurePassword,
+                  decoration: InputDecoration(
+                    labelText: 'Contraseña',
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        setState(() => obscurePassword = !obscurePassword);
+                      },
+                      icon: Icon(
+                        obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                    ),
+                  ),
+                  validator: Validators.password,
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: zone,
-                  items: const [
-                    DropdownMenuItem(value: 'Zona 1', child: Text('Zona 1')),
-                    DropdownMenuItem(value: 'Zona 2', child: Text('Zona 2')),
-                    DropdownMenuItem(value: 'Zona 3', child: Text('Zona 3')),
-                    DropdownMenuItem(value: 'Zona 4', child: Text('Zona 4')),
-                    DropdownMenuItem(value: 'Zona 5', child: Text('Zona 5')),
-                  ],
+                  items: AppCatalogs.zones
+                      .map(
+                        (item) =>
+                            DropdownMenuItem(value: item, child: Text(item)),
+                      )
+                      .toList(),
                   onChanged: (v) => setState(() => zone = v!),
                   decoration: const InputDecoration(labelText: 'Zona'),
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: reportsCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Reportes'),
-                ),
-                const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: status,
-                  items: const [
-                    DropdownMenuItem(value: 'Activo', child: Text('Activo')),
-                    DropdownMenuItem(
-                      value: 'Pendiente',
-                      child: Text('Pendiente'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'En revisión',
-                      child: Text('En revisión'),
-                    ),
-                  ],
+                  items: AppCatalogs.leaderStatuses
+                      .map(
+                        (item) =>
+                            DropdownMenuItem(value: item, child: Text(item)),
+                      )
+                      .toList(),
                   onChanged: (v) => setState(() => status = v!),
                   decoration: const InputDecoration(labelText: 'Estado'),
                 ),
@@ -3731,163 +3432,7 @@ class _AddLeaderDialogState extends State<AddLeaderDialog> {
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Guardar'),
-        ),
-      ],
-    );
-  }
-}
-
-class EditLeaderDialog extends StatefulWidget {
-  final LeaderRecord leader;
-
-  const EditLeaderDialog({super.key, required this.leader});
-
-  @override
-  State<EditLeaderDialog> createState() => _EditLeaderDialogState();
-}
-
-class _EditLeaderDialogState extends State<EditLeaderDialog> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController nameCtrl;
-  late final TextEditingController emailCtrl;
-  late final TextEditingController reportsCtrl;
-
-  late String zone;
-  late String status;
-  bool loading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    nameCtrl = TextEditingController(text: widget.leader.name);
-    emailCtrl = TextEditingController(text: widget.leader.email);
-    reportsCtrl = TextEditingController(text: '${widget.leader.reports}');
-    zone = widget.leader.zone;
-    status = widget.leader.status;
-  }
-
-  @override
-  void dispose() {
-    nameCtrl.dispose();
-    emailCtrl.dispose();
-    reportsCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> save() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => loading = true);
-
-    try {
-      await FirestoreService.updateLeader(
-        leaderId: widget.leader.id,
-        name: nameCtrl.text.trim(),
-        email: emailCtrl.text.trim(),
-        zone: zone,
-        reports: int.tryParse(reportsCtrl.text.trim()) ?? 0,
-        status: status,
-      );
-
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Líder actualizado correctamente')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al actualizar líder: $e')),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Editar líder'),
-      content: SizedBox(
-        width: 420,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Nombre'),
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Ingresa el nombre'
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: emailCtrl,
-                  decoration: const InputDecoration(labelText: 'Correo'),
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Ingresa el correo'
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: zone,
-                  items: const [
-                    DropdownMenuItem(value: 'Zona 1', child: Text('Zona 1')),
-                    DropdownMenuItem(value: 'Zona 2', child: Text('Zona 2')),
-                    DropdownMenuItem(value: 'Zona 3', child: Text('Zona 3')),
-                    DropdownMenuItem(value: 'Zona 4', child: Text('Zona 4')),
-                    DropdownMenuItem(value: 'Zona 5', child: Text('Zona 5')),
-                  ],
-                  onChanged: (v) => setState(() => zone = v!),
-                  decoration: const InputDecoration(labelText: 'Zona'),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: reportsCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Reportes'),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: status,
-                  items: const [
-                    DropdownMenuItem(value: 'Activo', child: Text('Activo')),
-                    DropdownMenuItem(
-                      value: 'Pendiente',
-                      child: Text('Pendiente'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'En revisión',
-                      child: Text('En revisión'),
-                    ),
-                  ],
-                  onChanged: (v) => setState(() => status = v!),
-                  decoration: const InputDecoration(labelText: 'Estado'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: loading ? null : () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: loading ? null : save,
-          child: loading
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Guardar cambios'),
+              : const Text('Crear líder'),
         ),
       ],
     );
@@ -3904,13 +3449,13 @@ class AddRegistroDialog extends StatefulWidget {
 class _AddRegistroDialogState extends State<AddRegistroDialog> {
   final _formKey = GlobalKey<FormState>();
   final descriptionCtrl = TextEditingController();
-  final zoneCtrl = TextEditingController(text: 'Zona 1');
+  final zoneCtrl = TextEditingController(text: AppCatalogs.zones.first);
 
   String? leaderId;
   String? leaderName;
-  String zone = 'Zona 1';
-  String type = 'Asistencia';
-  String status = 'Completado';
+  String zone = AppCatalogs.zones.first;
+  String type = AppCatalogs.registroTypes.first;
+  String status = AppCatalogs.registroStatuses.first;
   bool loading = false;
 
   @override
@@ -3923,9 +3468,7 @@ class _AddRegistroDialogState extends State<AddRegistroDialog> {
   Future<void> save() async {
     if (!_formKey.currentState!.validate()) return;
     if (leaderId == null || leaderName == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Selecciona un líder')));
+      AppUi.showSnackBar(context, 'Selecciona un líder');
       return;
     }
 
@@ -3941,14 +3484,13 @@ class _AddRegistroDialogState extends State<AddRegistroDialog> {
         status: status,
       );
 
-      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
+      Navigator.pop(context);
+      AppUi.showSnackBar(context, 'Registro guardado correctamente');
     } catch (e) {
-      if (mounted) {
-        setState(() => loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar registro: $e')),
-        );
-      }
+      if (!mounted) return;
+      setState(() => loading = false);
+      AppUi.showSnackBar(context, 'Error al guardar registro: $e');
     }
   }
 
@@ -4004,46 +3546,31 @@ class _AddRegistroDialogState extends State<AddRegistroDialog> {
                 DropdownButtonFormField<String>(
                   initialValue: type,
                   decoration: const InputDecoration(labelText: 'Tipo'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'Asistencia',
-                      child: Text('Asistencia'),
-                    ),
-                    DropdownMenuItem(value: 'Visita', child: Text('Visita')),
-                    DropdownMenuItem(
-                      value: 'Seguimiento',
-                      child: Text('Seguimiento'),
-                    ),
-                    DropdownMenuItem(value: 'Reunión', child: Text('Reunión')),
-                  ],
+                  items: AppCatalogs.registroTypes
+                      .map(
+                        (item) =>
+                            DropdownMenuItem(value: item, child: Text(item)),
+                      )
+                      .toList(),
                   onChanged: (v) => setState(() => type = v!),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: descriptionCtrl,
                   decoration: const InputDecoration(labelText: 'Descripción'),
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Ingresa una descripción'
-                      : null,
+                  validator: (v) =>
+                      Validators.requiredText(v, 'una descripción'),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: status,
                   decoration: const InputDecoration(labelText: 'Estado'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'Completado',
-                      child: Text('Completado'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Pendiente',
-                      child: Text('Pendiente'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'En revisión',
-                      child: Text('En revisión'),
-                    ),
-                  ],
+                  items: AppCatalogs.registroStatuses
+                      .map(
+                        (item) =>
+                            DropdownMenuItem(value: item, child: Text(item)),
+                      )
+                      .toList(),
                   onChanged: (v) => setState(() => status = v!),
                 ),
               ],
@@ -4115,9 +3642,7 @@ class _EditRegistroDialogState extends State<EditRegistroDialog> {
   Future<void> save() async {
     if (!_formKey.currentState!.validate()) return;
     if (leaderId == null || leaderName == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Selecciona un líder')));
+      AppUi.showSnackBar(context, 'Selecciona un líder');
       return;
     }
 
@@ -4134,19 +3659,13 @@ class _EditRegistroDialogState extends State<EditRegistroDialog> {
         status: status,
       );
 
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registro actualizado correctamente')),
-        );
-      }
+      if (!mounted) return;
+      Navigator.pop(context);
+      AppUi.showSnackBar(context, 'Registro actualizado correctamente');
     } catch (e) {
-      if (mounted) {
-        setState(() => loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al actualizar registro: $e')),
-        );
-      }
+      if (!mounted) return;
+      setState(() => loading = false);
+      AppUi.showSnackBar(context, 'Error al actualizar registro: $e');
     }
   }
 
@@ -4202,245 +3721,31 @@ class _EditRegistroDialogState extends State<EditRegistroDialog> {
                 DropdownButtonFormField<String>(
                   initialValue: type,
                   decoration: const InputDecoration(labelText: 'Tipo'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'Asistencia',
-                      child: Text('Asistencia'),
-                    ),
-                    DropdownMenuItem(value: 'Visita', child: Text('Visita')),
-                    DropdownMenuItem(
-                      value: 'Seguimiento',
-                      child: Text('Seguimiento'),
-                    ),
-                    DropdownMenuItem(value: 'Reunión', child: Text('Reunión')),
-                  ],
+                  items: AppCatalogs.registroTypes
+                      .map(
+                        (item) =>
+                            DropdownMenuItem(value: item, child: Text(item)),
+                      )
+                      .toList(),
                   onChanged: (v) => setState(() => type = v!),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: descriptionCtrl,
                   decoration: const InputDecoration(labelText: 'Descripción'),
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Ingresa una descripción'
-                      : null,
+                  validator: (v) =>
+                      Validators.requiredText(v, 'una descripción'),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: status,
                   decoration: const InputDecoration(labelText: 'Estado'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'Completado',
-                      child: Text('Completado'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Pendiente',
-                      child: Text('Pendiente'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'En revisión',
-                      child: Text('En revisión'),
-                    ),
-                  ],
-                  onChanged: (v) => setState(() => status = v!),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: loading ? null : () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: loading ? null : save,
-          child: loading
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Guardar cambios'),
-        ),
-      ],
-    );
-  }
-}
-
-class EditReporteDialog extends StatefulWidget {
-  final ReporteRecord reporte;
-
-  const EditReporteDialog({super.key, required this.reporte});
-
-  @override
-  State<EditReporteDialog> createState() => _EditReporteDialogState();
-}
-
-class _EditReporteDialogState extends State<EditReporteDialog> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController weekCtrl;
-  late final TextEditingController attendanceCtrl;
-  late final TextEditingController newPeopleCtrl;
-  late final TextEditingController zoneCtrl;
-
-  String? leaderId;
-  String? leaderName;
-  late String zone;
-  late String status;
-  bool loading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    weekCtrl = TextEditingController(text: widget.reporte.week);
-    attendanceCtrl = TextEditingController(
-      text: '${widget.reporte.attendance}',
-    );
-    newPeopleCtrl = TextEditingController(text: '${widget.reporte.newPeople}');
-    zoneCtrl = TextEditingController(text: widget.reporte.zone);
-
-    leaderId = widget.reporte.leaderId;
-    leaderName = widget.reporte.leaderName;
-    zone = widget.reporte.zone;
-    status = widget.reporte.status;
-  }
-
-  @override
-  void dispose() {
-    weekCtrl.dispose();
-    attendanceCtrl.dispose();
-    newPeopleCtrl.dispose();
-    zoneCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> save() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (leaderId == null || leaderName == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Selecciona un líder')));
-      return;
-    }
-
-    setState(() => loading = true);
-
-    try {
-      await FirestoreService.updateReporte(
-        reporteId: widget.reporte.id,
-        oldLeaderId: widget.reporte.leaderId,
-        leaderId: leaderId!,
-        leaderName: leaderName!,
-        zone: zone,
-        week: weekCtrl.text.trim(),
-        attendance: int.tryParse(attendanceCtrl.text.trim()) ?? 0,
-        newPeople: int.tryParse(newPeopleCtrl.text.trim()) ?? 0,
-        status: status,
-      );
-
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Reporte actualizado correctamente')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al actualizar reporte: $e')),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Editar reporte'),
-      content: SizedBox(
-        width: 460,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                StreamBuilder<List<LeaderRecord>>(
-                  stream: FirestoreService.leadersStream(),
-                  builder: (context, snapshot) {
-                    final leaders = snapshot.data ?? [];
-
-                    return DropdownButtonFormField<String>(
-                      initialValue: leaderId,
-                      decoration: const InputDecoration(labelText: 'Líder'),
-                      items: leaders.map((leader) {
-                        return DropdownMenuItem(
-                          value: leader.id,
-                          child: Text(leader.name),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        final selected = leaders.firstWhere(
-                          (e) => e.id == value,
-                        );
-                        setState(() {
-                          leaderId = selected.id;
-                          leaderName = selected.name;
-                          zone = selected.zone;
-                          zoneCtrl.text = selected.zone;
-                        });
-                      },
-                      validator: (v) =>
-                          v == null || v.isEmpty ? 'Selecciona un líder' : null,
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: zoneCtrl,
-                  readOnly: true,
-                  decoration: const InputDecoration(labelText: 'Zona'),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: weekCtrl,
-                  decoration: const InputDecoration(labelText: 'Semana'),
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Ingresa la semana'
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: attendanceCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Asistencia'),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: newPeopleCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Nuevas personas',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: status,
-                  decoration: const InputDecoration(labelText: 'Estado'),
-                  items: const [
-                    DropdownMenuItem(value: 'Enviado', child: Text('Enviado')),
-                    DropdownMenuItem(
-                      value: 'Pendiente',
-                      child: Text('Pendiente'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'En revisión',
-                      child: Text('En revisión'),
-                    ),
-                  ],
+                  items: AppCatalogs.registroStatuses
+                      .map(
+                        (item) =>
+                            DropdownMenuItem(value: item, child: Text(item)),
+                      )
+                      .toList(),
                   onChanged: (v) => setState(() => status = v!),
                 ),
               ],
@@ -4480,12 +3785,12 @@ class _AddReporteDialogState extends State<AddReporteDialog> {
   final weekCtrl = TextEditingController();
   final attendanceCtrl = TextEditingController(text: '0');
   final newPeopleCtrl = TextEditingController(text: '0');
-  final zoneCtrl = TextEditingController(text: 'Zona 1');
+  final zoneCtrl = TextEditingController(text: AppCatalogs.zones.first);
 
   String? leaderId;
   String? leaderName;
-  String zone = 'Zona 1';
-  String status = 'Enviado';
+  String zone = AppCatalogs.zones.first;
+  String status = AppCatalogs.reporteStatuses.first;
   bool loading = false;
 
   @override
@@ -4500,9 +3805,7 @@ class _AddReporteDialogState extends State<AddReporteDialog> {
   Future<void> save() async {
     if (!_formKey.currentState!.validate()) return;
     if (leaderId == null || leaderName == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Selecciona un líder')));
+      AppUi.showSnackBar(context, 'Selecciona un líder');
       return;
     }
 
@@ -4519,14 +3822,13 @@ class _AddReporteDialogState extends State<AddReporteDialog> {
         status: status,
       );
 
-      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
+      Navigator.pop(context);
+      AppUi.showSnackBar(context, 'Reporte guardado correctamente');
     } catch (e) {
-      if (mounted) {
-        setState(() => loading = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error al guardar reporte: $e')));
-      }
+      if (!mounted) return;
+      setState(() => loading = false);
+      AppUi.showSnackBar(context, 'Error al guardar reporte: $e');
     }
   }
 
@@ -4582,9 +3884,7 @@ class _AddReporteDialogState extends State<AddReporteDialog> {
                 TextFormField(
                   controller: weekCtrl,
                   decoration: const InputDecoration(labelText: 'Semana'),
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Ingresa la semana'
-                      : null,
+                  validator: (v) => Validators.requiredText(v, 'la semana'),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -4604,17 +3904,12 @@ class _AddReporteDialogState extends State<AddReporteDialog> {
                 DropdownButtonFormField<String>(
                   initialValue: status,
                   decoration: const InputDecoration(labelText: 'Estado'),
-                  items: const [
-                    DropdownMenuItem(value: 'Enviado', child: Text('Enviado')),
-                    DropdownMenuItem(
-                      value: 'Pendiente',
-                      child: Text('Pendiente'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'En revisión',
-                      child: Text('En revisión'),
-                    ),
-                  ],
+                  items: AppCatalogs.reporteStatuses
+                      .map(
+                        (item) =>
+                            DropdownMenuItem(value: item, child: Text(item)),
+                      )
+                      .toList(),
                   onChanged: (v) => setState(() => status = v!),
                 ),
               ],
