@@ -1,8 +1,156 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myLeaderDoc() {
+      return get(/databases/$(database)/documents/leaders/$(request.auth.uid));
+    }
+
+    function myLeaderData() {
+      return myLeaderDoc().data;
+    }
+
+    function leaderProfileExists() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/leaders/$(request.auth.uid));
+    }
+
+    function isActiveLeader() {
+      return leaderProfileExists() &&
+        myLeaderData().status == 'activo';
+    }
+
+    function isAdmin() {
+      return isActiveLeader() &&
+        myLeaderData().role == 'admin';
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function emailKey() {
+      return request.auth.token.email;
+    }
+
+    function matchesOwnEmail(email) {
+      return signedIn() &&
+        emailKey() != null &&
+        email == emailKey();
+    }
+
+    function pendingLeaderInviteExists() {
+      return signedIn() &&
+        emailKey() != null &&
+        exists(/databases/$(database)/documents/leaders/$(emailKey()));
+    }
+
+    function pendingLeaderInviteData() {
+      return get(/databases/$(database)/documents/leaders/$(emailKey())).data;
+    }
+
+    function canClaimOwnLeaderProfile(leaderId) {
+      return isSelf(leaderId) &&
+        !leaderProfileExists() &&
+        pendingLeaderInviteExists() &&
+        request.resource.data.email == emailKey() &&
+        request.resource.data.name == pendingLeaderInviteData().name &&
+        request.resource.data.zone == pendingLeaderInviteData().zone &&
+        request.resource.data.status == pendingLeaderInviteData().status &&
+        request.resource.data.role == pendingLeaderInviteData().role &&
+        request.resource.data.reports == pendingLeaderInviteData().reports;
+    }
+
+    function jovenBelongsToCurrentLeader(jovenId) {
+      return isActiveLeader() &&
+        get(/databases/$(database)/documents/jovenes/$(jovenId)).data.leaderId == request.auth.uid;
+    }
+
+    match /leaders/{leaderId} {
+      allow read: if isAdmin() ||
+        isSelf(leaderId) ||
+        matchesOwnEmail(resource.data.email);
+      allow create: if isAdmin() || canClaimOwnLeaderProfile(leaderId);
+      allow update: if isAdmin();
+      allow delete: if isAdmin() ||
+        (signedIn() &&
+          emailKey() != null &&
+          leaderId == emailKey() &&
+          matchesOwnEmail(resource.data.email));
+    }
+
+    match /registros/{docId} {
+      allow read: if isAdmin() ||
+        (isActiveLeader() && resource.data.leaderId == request.auth.uid);
+
+      allow create: if isAdmin() ||
+        (isActiveLeader() &&
+          request.resource.data.leaderId == request.auth.uid);
+
+      allow update, delete: if isAdmin() ||
+        (isActiveLeader() && resource.data.leaderId == request.auth.uid);
+    }
+
+    match /reportes/{docId} {
+      allow read: if isAdmin() ||
+        (isActiveLeader() && resource.data.leaderId == request.auth.uid);
+
+      allow create: if isAdmin() ||
+        (isActiveLeader() &&
+          request.resource.data.leaderId == request.auth.uid);
+
+      allow update, delete: if isAdmin() ||
+        (isActiveLeader() && resource.data.leaderId == request.auth.uid);
+    }
+
+    match /jovenes/{jovenId} {
+      allow read: if isAdmin() ||
+        (isActiveLeader() && resource.data.leaderId == request.auth.uid);
+
+      allow create: if isAdmin() ||
+        (isActiveLeader() &&
+          request.resource.data.leaderId == request.auth.uid);
+
+      allow update, delete: if isAdmin() ||
+        (isActiveLeader() && resource.data.leaderId == request.auth.uid);
+    }
+
+    match /actividades/{actividadId} {
+      allow read: if isActiveLeader();
+      allow create, update, delete: if isAdmin();
+    }
+
+    function attendanceBelongsToCurrentLeader() {
+      return isActiveLeader() &&
+        (
+          resource.data.leaderId == request.auth.uid ||
+          (
+            resource.data.jovenId is string &&
+            jovenBelongsToCurrentLeader(resource.data.jovenId)
+          )
+        );
+    }
+
+    function newAttendanceBelongsToCurrentLeader() {
+      return isActiveLeader() &&
+        request.resource.data.leaderId == request.auth.uid &&
+        request.resource.data.jovenId is string &&
+        jovenBelongsToCurrentLeader(request.resource.data.jovenId);
+    }
+
+    match /asistencias/{asistenciaId} {
+      allow read: if isAdmin() || attendanceBelongsToCurrentLeader();
+
+      allow create: if isAdmin() || newAttendanceBelongsToCurrentLeader();
+
+      allow update: if isAdmin() ||
+        (attendanceBelongsToCurrentLeader() &&
+          newAttendanceBelongsToCurrentLeader());
+
+      allow delete: if isAdmin() || attendanceBelongsToCurrentLeader();
     }
   }
 }

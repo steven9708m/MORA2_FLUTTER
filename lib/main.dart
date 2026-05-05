@@ -115,6 +115,119 @@ String _formatAnyDate(dynamic value) {
   }
 }
 
+DateTime? _extractDate(dynamic value) {
+  if (value == null) return null;
+  if (value is Timestamp) return value.toDate();
+  return _tryParseDateInput(value.toString());
+}
+
+DateTime? _tryParseDateInput(String value) {
+  final raw = value.trim();
+  if (raw.isEmpty) return null;
+  try {
+    return DateTime.parse(raw);
+  } catch (_) {
+    return null;
+  }
+}
+
+bool _isValidDateInput(String value) => _tryParseDateInput(value) != null;
+
+List<QueryDocumentSnapshot<Map<String, dynamic>>> _sortActivitiesByProximity(
+  Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+) {
+  final now = DateTime.now();
+  final normalizedToday = DateTime(now.year, now.month, now.day);
+  final sorted = docs.toList();
+
+  sorted.sort((a, b) {
+    final aDate = _extractDate(a.data()['fecha']);
+    final bDate = _extractDate(b.data()['fecha']);
+
+    if (aDate == null && bDate == null) return 0;
+    if (aDate == null) return 1;
+    if (bDate == null) return -1;
+
+    final aDay = DateTime(aDate.year, aDate.month, aDate.day);
+    final bDay = DateTime(bDate.year, bDate.month, bDate.day);
+    final aPast = aDay.isBefore(normalizedToday);
+    final bPast = bDay.isBefore(normalizedToday);
+
+    if (aPast != bPast) return aPast ? 1 : -1;
+    return aDay.compareTo(bDay);
+  });
+
+  return sorted;
+}
+
+String _formatRelativeActivityDate(dynamic value) {
+  final date = _extractDate(value);
+  if (date == null) return 'Fecha sin validar';
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final target = DateTime(date.year, date.month, date.day);
+  final difference = target.difference(today).inDays;
+
+  if (difference == 0) return 'Hoy';
+  if (difference == 1) return 'Mañana';
+  if (difference > 1) return 'En $difference días';
+  if (difference == -1) return 'Ayer';
+  return 'Hace ${difference.abs()} días';
+}
+
+Future<void> _pickDateIntoController(
+  BuildContext context,
+  TextEditingController controller,
+) async {
+  final picked = await showDatePicker(
+    context: context,
+    initialDate: _tryParseDateInput(controller.text) ?? DateTime.now(),
+    firstDate: DateTime(2000),
+    lastDate: DateTime(2100),
+  );
+  if (picked == null) return;
+  controller.text = DateFormat('yyyy-MM-dd').format(picked);
+}
+
+String _activityStatusLabel(String status) {
+  switch (status.trim().toLowerCase()) {
+    case 'activa':
+      return 'Activa';
+    case 'cerrada':
+      return 'Cerrada';
+    case 'programada':
+    default:
+      return 'Programada';
+  }
+}
+
+Color _activityStatusColor(String status) {
+  switch (status.trim().toLowerCase()) {
+    case 'activa':
+      return const Color(0xFF0F9D58);
+    case 'cerrada':
+      return const Color(0xFF6B7280);
+    case 'programada':
+    default:
+      return const Color(0xFF6A3EC5);
+  }
+}
+
+String _truncateText(String value, {int maxLength = 110}) {
+  final clean = value.trim();
+  if (clean.length <= maxLength) return clean;
+  return '${clean.substring(0, maxLength).trimRight()}...';
+}
+
+List<List<T>> _chunkList<T>(List<T> items, int size) {
+  final chunks = <List<T>>[];
+  for (var i = 0; i < items.length; i += size) {
+    final end = (i + size < items.length) ? i + size : items.length;
+    chunks.add(items.sublist(i, end));
+  }
+  return chunks;
+}
+
 String _boolToSiNo(dynamic value) => value == true ? 'SI' : 'NO';
 
 void _downloadBytes(Uint8List bytes, String filename) {
@@ -435,8 +548,9 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 validator: (v) {
                   if ((v ?? '').trim().isEmpty) return 'Ingresa tu contraseña.';
-                  if ((v ?? '').length < 6)
+                  if ((v ?? '').length < 6) {
                     return 'Debe tener al menos 6 caracteres.';
+                  }
                   return null;
                 },
               ),
@@ -877,6 +991,16 @@ class DashboardPage extends StatelessWidget {
         .where('leaderId', isEqualTo: currentUser.uid);
   }
 
+  Stream<QuerySnapshot<Map<String, dynamic>>> _leadersMetricStream() {
+    if (isAdmin(leader.role)) {
+      return db.collection('leaders').snapshots();
+    }
+    return db
+        .collection('leaders')
+        .where(FieldPath.documentId, isEqualTo: currentUser.uid)
+        .snapshots();
+  }
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -895,7 +1019,7 @@ class DashboardPage extends StatelessWidget {
                 width: mobile ? double.infinity : 250,
                 title: 'Líderes',
                 icon: Icons.manage_accounts,
-                stream: db.collection('leaders').snapshots(),
+                stream: _leadersMetricStream(),
               ),
               _MetricCard(
                 width: mobile ? double.infinity : 250,
@@ -928,15 +1052,29 @@ class DashboardPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             const _Panel(
-              title: 'Líderes recientes',
-              child: _RecentLeadersPanel(),
+              title: 'Estado de actividades',
+              child: _ActivityStatusPanel(),
             ),
+            const SizedBox(height: 16),
+            _Panel(
+              title: isAdmin(leader.role) ? 'Líderes recientes' : 'Mi perfil',
+              child: isAdmin(leader.role)
+                  ? const _RecentLeadersPanel()
+                  : _LeaderSummaryPanel(leader: leader),
+            ),
+            if (isAdmin(leader.role)) ...[
+              const SizedBox(height: 16),
+              const _Panel(
+                title: 'Actividades recientes',
+                child: _RecentActivitiesPanel(),
+              ),
+            ],
           ] else ...[
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  flex: 2,
+                  flex: 3,
                   child: _Panel(
                     title: 'Jóvenes por líder',
                     child: _YoungPeopleByLeaderChart(
@@ -946,19 +1084,47 @@ class DashboardPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 16),
-                const Expanded(
+                Expanded(
                   child: _Panel(
-                    title: 'Líderes recientes',
-                    child: _RecentLeadersPanel(),
+                    title: 'Estado de actividades',
+                    child: const _ActivityStatusPanel(),
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _Panel(
+                    title:
+                        isAdmin(leader.role) ? 'Líderes recientes' : 'Mi perfil',
+                    child: isAdmin(leader.role)
+                        ? const _RecentLeadersPanel()
+                        : _LeaderSummaryPanel(leader: leader),
+                  ),
+                ),
+                if (isAdmin(leader.role)) ...[
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    flex: 2,
+                    child: _Panel(
+                      title: 'Actividades recientes',
+                      child: _RecentActivitiesPanel(),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ],
           const SizedBox(height: 16),
-          const _Panel(
-            title: 'Asistencia por actividad',
-            child: _AttendanceByActivityPanel(),
+          _Panel(
+            title:
+                isAdmin(leader.role) ? 'Asistencia por actividad' : 'Asistencia',
+            child: isAdmin(leader.role)
+                ? const _AttendanceByActivityPanel()
+                : const _LeaderAttendanceHint(),
           ),
         ],
       ),
@@ -975,11 +1141,12 @@ class _WelcomeHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const CircleAvatar(
-              radius: 26,
+              radius: 28,
               backgroundColor: Color(0xFFEDE6FF),
               child: Icon(Icons.waving_hand_rounded, color: Color(0xFF6A3EC5)),
             ),
@@ -991,15 +1158,40 @@ class _WelcomeHeader extends StatelessWidget {
                   Text(
                     'Hola, ${leader.name}',
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 22,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
                     isAdmin(leader.role)
                         ? 'Tienes acceso completo al sistema.'
                         : 'Aquí puedes gestionar tus jóvenes, reportes y asistencias.',
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Chip(
+                        avatar: const Icon(Icons.verified_user, size: 18),
+                        label: Text(
+                          isAdmin(leader.role) ? 'Administrador' : 'Líder',
+                        ),
+                      ),
+                      Chip(
+                        avatar: const Icon(Icons.place_outlined, size: 18),
+                        label: Text(
+                          leader.zone.isEmpty ? 'Sin zona' : leader.zone,
+                        ),
+                      ),
+                      Chip(
+                        avatar: const Icon(Icons.shield_outlined, size: 18),
+                        label: Text(
+                          leader.status.isEmpty ? 'Sin estado' : leader.status,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1039,6 +1231,33 @@ class _MetricCard extends StatelessWidget {
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: stream,
               builder: (context, snap) {
+                if (snap.hasError) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: const Color(0xFFFFF1F1),
+                        child: Icon(icon, color: Colors.red.shade400),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.black54,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'No disponible',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  );
+                }
                 final count = snap.data?.docs.length ?? 0;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1096,6 +1315,9 @@ class _YoungPeopleByLeaderChart extends StatelessWidget {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: stream,
       builder: (context, snap) {
+        if (snap.hasError) {
+          return const _EmptyData('No se pudieron cargar los jóvenes.');
+        }
         if (!snap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -1116,10 +1338,52 @@ class _YoungPeopleByLeaderChart extends StatelessWidget {
             ..[currentUser.uid] = docs.length;
         }
 
+        if (!isAdmin(leader.role)) {
+          final total = counts[currentUser.uid] ?? docs.length;
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    const SizedBox(
+                      width: 120,
+                      child: Text(
+                        'Tus jóvenes',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: LinearProgressIndicator(
+                        value: total == 0 ? 0 : 1,
+                        minHeight: 12,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      '$total',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }
+
         return FutureBuilder<Map<String, String>>(
           future: fetchLeaderNames(),
           builder: (context, namesSnap) {
-            final names = namesSnap.data ?? {};
+            if (namesSnap.hasError) {
+              return const _EmptyData('No se pudieron cargar los líderes.');
+            }
+            if (!namesSnap.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final names = namesSnap.data!;
             final entries = counts.entries.toList()
               ..sort((a, b) => b.value.compareTo(a.value));
             final maxValue = entries.first.value == 0 ? 1 : entries.first.value;
@@ -1174,6 +1438,9 @@ class _RecentLeadersPanel extends StatelessWidget {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: db.collection('leaders').snapshots(),
       builder: (context, snap) {
+        if (snap.hasError) {
+          return const _EmptyData('No se pudieron cargar los líderes.');
+        }
         if (!snap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -1209,6 +1476,135 @@ class _RecentLeadersPanel extends StatelessWidget {
   }
 }
 
+class _LeaderSummaryPanel extends StatelessWidget {
+  final LeaderProfile leader;
+
+  const _LeaderSummaryPanel({required this.leader});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const CircleAvatar(child: Icon(Icons.person)),
+          title: Text(leader.name),
+          subtitle: Text(
+            '${leader.email.isEmpty ? 'Sin correo' : leader.email} · ${leader.zone.isEmpty ? 'Sin zona' : leader.zone}',
+          ),
+          trailing: Chip(label: Text(leader.status)),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActivityStatusPanel extends StatelessWidget {
+  const _ActivityStatusPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: db.collection('actividades').snapshots(),
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return const _EmptyData('No se pudieron cargar las actividades.');
+        }
+        if (!snap.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snap.data!.docs;
+        final total = docs.length;
+        final activas = docs
+            .where((e) => safeString(e.data(), 'estado') == 'activa')
+            .length;
+        final programadas = docs
+            .where((e) => safeString(e.data(), 'estado') == 'programada')
+            .length;
+        final cerradas = docs
+            .where((e) => safeString(e.data(), 'estado') == 'cerrada')
+            .length;
+
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            _MiniStatCard(
+              label: 'Total',
+              value: '$total',
+              color: const Color(0xFF6A3EC5),
+            ),
+            _MiniStatCard(
+              label: 'Activas',
+              value: '$activas',
+              color: const Color(0xFF0F9D58),
+            ),
+            _MiniStatCard(
+              label: 'Programadas',
+              value: '$programadas',
+              color: const Color(0xFF2563EB),
+            ),
+            _MiniStatCard(
+              label: 'Cerradas',
+              value: '$cerradas',
+              color: const Color(0xFF6B7280),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _RecentActivitiesPanel extends StatelessWidget {
+  const _RecentActivitiesPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: db.collection('actividades').snapshots(),
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return const _EmptyData('No se pudieron cargar las actividades.');
+        }
+        if (!snap.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = _sortActivitiesByProximity(snap.data!.docs).take(5).toList();
+        if (docs.isEmpty) {
+          return const _EmptyData('No hay actividades registradas.');
+        }
+
+        return Column(
+          children: docs.map((d) {
+            final data = d.data();
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                backgroundColor: const Color(0xFFEDE6FF),
+                child: Icon(
+                  Icons.event_note,
+                  color: _activityStatusColor(safeString(data, 'estado')),
+                ),
+              ),
+              title: Text(
+                safeString(data, 'nombre', 'Actividad'),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              subtitle: Text(
+                '${_formatAnyDate(data["fecha"])} · ${_truncateText(safeString(data, "descripcion", "Sin descripción"), maxLength: 60)}',
+              ),
+              trailing: _ActivityStatusChip(
+                status: safeString(data, 'estado', 'programada'),
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+}
+
 class _AttendanceByActivityPanel extends StatelessWidget {
   const _AttendanceByActivityPanel();
 
@@ -1217,6 +1613,9 @@ class _AttendanceByActivityPanel extends StatelessWidget {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: db.collection('actividades').snapshots(),
       builder: (context, actSnap) {
+        if (actSnap.hasError) {
+          return const _EmptyData('No se pudieron cargar las actividades.');
+        }
         if (!actSnap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -1228,6 +1627,9 @@ class _AttendanceByActivityPanel extends StatelessWidget {
         return FutureBuilder<List<_ActivityAttendanceSummary>>(
           future: _loadActivityAttendanceSummaries(acts),
           builder: (context, sumSnap) {
+            if (sumSnap.hasError) {
+              return const _EmptyData('No se pudo cargar la asistencia.');
+            }
             if (!sumSnap.hasData) {
               return const Center(child: CircularProgressIndicator());
             }
@@ -1270,6 +1672,21 @@ class _AttendanceByActivityPanel extends StatelessWidget {
   }
 }
 
+class _LeaderAttendanceHint extends StatelessWidget {
+  const _LeaderAttendanceHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.all(18),
+      child: Text(
+        'Para revisar y marcar asistencia, entra a Actividades y abre la actividad correspondiente.',
+        style: TextStyle(color: Colors.black54),
+      ),
+    );
+  }
+}
+
 Future<Map<String, String>> fetchLeaderNames() async {
   final snapshot = await db.collection('leaders').get();
   return {
@@ -1293,26 +1710,253 @@ class _ActivityAttendanceSummary {
 Future<List<_ActivityAttendanceSummary>> _loadActivityAttendanceSummaries(
   List<QueryDocumentSnapshot<Map<String, dynamic>>> acts,
 ) async {
+  final asistenciaSnap = await db.collection('asistencias').get();
+  final totalsByActivity = <String, int>{};
+  final attendedByActivity = <String, int>{};
+
+  for (final doc in asistenciaSnap.docs) {
+    final data = doc.data();
+    final activityId = safeString(data, 'activityId');
+    if (activityId.isEmpty) continue;
+    totalsByActivity[activityId] = (totalsByActivity[activityId] ?? 0) + 1;
+    if (data['attended'] == true) {
+      attendedByActivity[activityId] =
+          (attendedByActivity[activityId] ?? 0) + 1;
+    }
+  }
+
   final out = <_ActivityAttendanceSummary>[];
   for (final act in acts) {
-    final asistenciaSnap = await db
-        .collection('asistencias')
-        .where('activityId', isEqualTo: act.id)
-        .get();
-    int attended = 0;
-    for (final a in asistenciaSnap.docs) {
-      if ((a.data()['attended'] ?? false) == true) attended++;
-    }
     out.add(
       _ActivityAttendanceSummary(
         activityName: safeString(act.data(), 'nombre', 'Actividad'),
-        attended: attended,
-        total: asistenciaSnap.docs.length,
+        attended: attendedByActivity[act.id] ?? 0,
+        total: totalsByActivity[act.id] ?? 0,
       ),
     );
   }
   out.sort((a, b) => b.attended.compareTo(a.attended));
   return out;
+}
+
+class _MiniStatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _MiniStatCard({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 130),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withOpacity(.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.black54,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityStatusChip extends StatelessWidget {
+  final String status;
+
+  const _ActivityStatusChip({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _activityStatusColor(status);
+    return Chip(
+      side: BorderSide(color: color.withOpacity(.18)),
+      backgroundColor: color.withOpacity(.08),
+      label: Text(
+        _activityStatusLabel(status),
+        style: TextStyle(color: color, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class _ActivityHeroCard extends StatelessWidget {
+  final QueryDocumentSnapshot<Map<String, dynamic>>? nextActivity;
+  final int upcomingCount;
+
+  const _ActivityHeroCard({
+    required this.nextActivity,
+    required this.upcomingCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final data = nextActivity?.data() ?? const <String, dynamic>{};
+    final status = safeString(data, 'estado', 'programada');
+    final title = safeString(data, 'nombre', 'Sin actividades cercanas');
+    final description = safeString(
+      data,
+      'descripcion',
+      upcomingCount == 0
+          ? 'Todavía no hay actividades próximas registradas.'
+          : 'Revisa la programación para confirmar detalles.',
+    );
+    final relativeDate = nextActivity == null
+        ? 'Agenda pendiente'
+        : _formatRelativeActivityDate(data['fecha']);
+    final exactDate = nextActivity == null ? '' : _formatAnyDate(data['fecha']);
+    final color = _activityStatusColor(status);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFFFFFFFF),
+            color.withOpacity(.06),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: color.withOpacity(.16)),
+      ),
+      child: Wrap(
+        spacing: 18,
+        runSpacing: 18,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: color.withOpacity(.12),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Icon(Icons.event_available, color: color, size: 34),
+          ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 260, maxWidth: 560),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Próxima actividad destacada',
+                  style: TextStyle(
+                    color: Colors.black54,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    height: 1.05,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _truncateText(description, maxLength: 180),
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _ActivityInfoPill(
+                icon: Icons.schedule,
+                label: relativeDate,
+                tone: color,
+              ),
+              if (exactDate.isNotEmpty)
+                _ActivityInfoPill(
+                  icon: Icons.calendar_today_outlined,
+                  label: exactDate,
+                  tone: const Color(0xFF2563EB),
+                ),
+              _ActivityInfoPill(
+                icon: Icons.upcoming_outlined,
+                label: '$upcomingCount próximas',
+                tone: const Color(0xFF0F9D58),
+              ),
+              if (nextActivity != null) _ActivityStatusChip(status: status),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityInfoPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color tone;
+
+  const _ActivityInfoPill({
+    required this.icon,
+    required this.label,
+    required this.tone,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: tone.withOpacity(.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: tone.withOpacity(.16)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: tone),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: tone,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _Panel extends StatelessWidget {
@@ -1425,8 +2069,9 @@ class LeadersPage extends StatelessWidget {
                 docs.sort((a, b) {
                   final aTs = a.data()['createdAt'];
                   final bTs = b.data()['createdAt'];
-                  if (aTs is Timestamp && bTs is Timestamp)
+                  if (aTs is Timestamp && bTs is Timestamp) {
                     return bTs.compareTo(aTs);
+                  }
                   return 0;
                 });
 
@@ -1485,6 +2130,7 @@ Future<void> _showLeaderDialog(
 }) async {
   final formKey = GlobalKey<FormState>();
   final data = initial ?? {};
+  final uidCtrl = TextEditingController(text: docId ?? '');
   final nameCtrl = TextEditingController(text: safeString(data, 'name'));
   final emailCtrl = TextEditingController(text: safeString(data, 'email'));
   final zoneCtrl = TextEditingController(text: safeString(data, 'zone'));
@@ -1505,6 +2151,17 @@ Future<void> _showLeaderDialog(
           child: SingleChildScrollView(
             child: Column(
               children: [
+                if (docId == null) ...[
+                  TextFormField(
+                    controller: uidCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'UID del usuario en Authentication',
+                    ),
+                    validator: (v) =>
+                        (v ?? '').trim().isEmpty ? 'Requerido.' : null,
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 TextFormField(
                   controller: nameCtrl,
                   decoration: const InputDecoration(labelText: 'Nombre'),
@@ -1569,6 +2226,9 @@ Future<void> _showLeaderDialog(
         FilledButton(
           onPressed: () async {
             if (!(formKey.currentState?.validate() ?? false)) return;
+
+            final targetDocId = docId ?? uidCtrl.text.trim();
+
             final payload = {
               'name': nameCtrl.text.trim(),
               'email': emailCtrl.text.trim(),
@@ -1581,14 +2241,11 @@ Future<void> _showLeaderDialog(
               'updatedAt': FieldValue.serverTimestamp(),
             };
 
-            if (docId == null) {
-              await db.collection('leaders').add(payload);
-            } else {
-              await db.collection('leaders').doc(docId).set(
-                    payload,
-                    SetOptions(merge: true),
-                  );
-            }
+            await db.collection('leaders').doc(targetDocId).set(
+                  payload,
+                  SetOptions(merge: true),
+                );
+
             if (context.mounted) Navigator.pop(context);
           },
           child: const Text('Guardar'),
@@ -1613,6 +2270,7 @@ class RegistrosPage extends StatelessWidget {
     if (isAdmin(leader.role)) {
       return base.orderBy('createdAt', descending: true);
     }
+    // Puede requerir indice compuesto en Firestore.
     return base
         .where('leaderId', isEqualTo: currentUser.uid)
         .orderBy('createdAt', descending: true);
@@ -1648,6 +2306,7 @@ class ReportesPage extends StatelessWidget {
     if (isAdmin(leader.role)) {
       return base.orderBy('fecha', descending: true);
     }
+    // Puede requerir indice compuesto en Firestore.
     return base
         .where('leaderId', isEqualTo: currentUser.uid)
         .orderBy('fecha', descending: true);
@@ -1835,7 +2494,10 @@ Future<void> _showCrudDialog(
             if (!(formKey.currentState?.validate() ?? false)) return;
             final payload = <String, dynamic>{};
             for (final f in fields) {
-              payload[f.key] = ctrls[f.key]!.text.trim();
+              final raw = ctrls[f.key]!.text.trim();
+              payload[f.key] = f.keyboardType == TextInputType.number
+                  ? (int.tryParse(raw) ?? 0)
+                  : raw;
             }
             payload['leaderId'] = initial?['leaderId'] ?? currentUser.uid;
             payload['createdAt'] =
@@ -1881,6 +2543,7 @@ class _JovenesPageState extends State<JovenesPage> {
     if (isAdmin(widget.leader.role)) {
       return base.orderBy('createdAt', descending: true);
     }
+    // Puede requerir indice compuesto en Firestore.
     return base
         .where('leaderId', isEqualTo: widget.currentUser.uid)
         .orderBy('createdAt', descending: true);
@@ -2240,11 +2903,20 @@ Future<void> _showJovenDialog(
                     const SizedBox(height: 10),
                     TextFormField(
                       controller: fechaCtrl,
+                      readOnly: true,
+                      onTap: () => _pickDateIntoController(context, fechaCtrl),
                       decoration: const InputDecoration(
                         labelText: 'Fecha de nacimiento (yyyy-MM-dd)',
+                        suffixIcon: Icon(Icons.calendar_today_outlined),
                       ),
-                      validator: (v) =>
-                          (v ?? '').trim().isEmpty ? 'Requerido.' : null,
+                      validator: (v) {
+                        final value = (v ?? '').trim();
+                        if (value.isEmpty) return 'Requerido.';
+                        if (!_isValidDateInput(value)) {
+                          return 'Usa una fecha válida.';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 10),
                     TextFormField(
@@ -2531,12 +3203,29 @@ class _HistorialItem {
 Future<List<_HistorialItem>> _buildHistorial(
   List<QueryDocumentSnapshot<Map<String, dynamic>>> asistencias,
 ) async {
+  final activityIds = asistencias
+      .map((e) => safeString(e.data(), 'activityId'))
+      .where((e) => e.isNotEmpty)
+      .toSet()
+      .toList();
+
+  final activitiesById = <String, Map<String, dynamic>>{};
+  for (final chunk in _chunkList(activityIds, 10)) {
+    if (chunk.isEmpty) continue;
+    final snap = await db
+        .collection('actividades')
+        .where(FieldPath.documentId, whereIn: chunk)
+        .get();
+    for (final doc in snap.docs) {
+      activitiesById[doc.id] = doc.data();
+    }
+  }
+
   final out = <_HistorialItem>[];
   for (final a in asistencias) {
     final data = a.data();
     final activityId = safeString(data, 'activityId');
-    final act = await db.collection('actividades').doc(activityId).get();
-    final actData = act.data() ?? {};
+    final actData = activitiesById[activityId] ?? const <String, dynamic>{};
     out.add(
       _HistorialItem(
         activityName: safeString(actData, 'nombre', 'Actividad'),
@@ -2574,207 +3263,565 @@ class ActividadesPage extends StatefulWidget {
 class _ActividadesPageState extends State<ActividadesPage> {
   String? selectedLeaderId;
   String? selectedZone;
+  String search = '';
+  String selectedStatus = 'todos';
 
   Query<Map<String, dynamic>> _activitiesQuery() {
-    return db.collection('actividades').orderBy('fecha', descending: true);
+    return db.collection('actividades');
   }
 
   @override
   Widget build(BuildContext context) {
     final mobile = MediaQuery.of(context).size.width < 900;
 
-    return Column(
-      children: [
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          alignment: WrapAlignment.spaceBetween,
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _activitiesQuery().snapshots(),
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return const Center(
+            child: Text('No se pudieron cargar las actividades.'),
+          );
+        }
+        if (!snap.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final docs = _sortActivitiesByProximity(snap.data!.docs);
+        final filteredDocs = docs.where((doc) {
+          final data = doc.data();
+          final matchesSearch = search.isEmpty ||
+              safeString(data, 'nombre').toLowerCase().contains(search) ||
+              safeString(data, 'descripcion').toLowerCase().contains(search);
+          final status = safeString(data, 'estado', 'programada');
+          final matchesStatus =
+              selectedStatus == 'todos' || status == selectedStatus;
+          return matchesSearch && matchesStatus;
+        }).toList();
+
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final upcomingDocs = docs.where((doc) {
+          final date = _extractDate(doc.data()['fecha']);
+          if (date == null) return false;
+          final normalized = DateTime(date.year, date.month, date.day);
+          return !normalized.isBefore(today);
+        }).toList();
+        final nextActivity = upcomingDocs.isEmpty ? null : upcomingDocs.first;
+
+        final total = docs.length;
+        final activas = docs
+            .where((e) => safeString(e.data(), 'estado') == 'activa')
+            .length;
+        final programadas = docs
+            .where((e) => safeString(e.data(), 'estado') == 'programada')
+            .length;
+        final cerradas = docs
+            .where((e) => safeString(e.data(), 'estado') == 'cerrada')
+            .length;
+
+        return ListView(
           children: [
-            if (isAdmin(widget.leader.role))
-              FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                future: db.collection('leaders').get(),
-                builder: (context, snap) {
-                  final leaders = snap.data?.docs ?? [];
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      SizedBox(
-                        width: mobile ? double.infinity : 220,
-                        child: DropdownButtonFormField<String?>(
-                          value: selectedLeaderId,
-                          decoration: const InputDecoration(
-                            labelText: 'Filtrar por líder',
-                          ),
-                          items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('Todos'),
-                            ),
-                            ...leaders.map(
-                              (e) => DropdownMenuItem<String?>(
-                                value: e.id,
-                                child: Text(
-                                  safeString(e.data(), 'name', 'Sin nombre'),
-                                ),
-                              ),
-                            ),
-                          ],
-                          onChanged: (v) =>
-                              setState(() => selectedLeaderId = v),
-                        ),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Actividades',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
                       ),
-                      SizedBox(
-                        width: mobile ? double.infinity : 220,
-                        child: DropdownButtonFormField<String?>(
-                          value: selectedZone,
-                          decoration: const InputDecoration(
-                            labelText: 'Filtrar por zona',
-                          ),
-                          items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('Todas'),
-                            ),
-                            ...leaders
-                                .map((e) => safeString(e.data(), 'zone'))
-                                .where((z) => z.isNotEmpty)
-                                .toSet()
-                                .map(
-                                  (z) => DropdownMenuItem<String?>(
-                                    value: z,
-                                    child: Text(z),
-                                  ),
-                                ),
-                          ],
-                          onChanged: (v) => setState(() => selectedZone = v),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Consulta el calendario, revisa el estado de cada actividad y abre la asistencia con el contexto correcto.',
+                      style: TextStyle(color: Colors.black54),
+                    ),
+                    const SizedBox(height: 16),
+                    _ActivityHeroCard(
+                      nextActivity: nextActivity,
+                      upcomingCount: upcomingDocs.length,
+                    ),
+                    const SizedBox(height: 18),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        _MiniStatCard(
+                          label: 'Total',
+                          value: '$total',
+                          color: const Color(0xFF6A3EC5),
                         ),
+                        _MiniStatCard(
+                          label: 'Activas',
+                          value: '$activas',
+                          color: const Color(0xFF0F9D58),
+                        ),
+                        _MiniStatCard(
+                          label: 'Programadas',
+                          value: '$programadas',
+                          color: const Color(0xFF2563EB),
+                        ),
+                        _MiniStatCard(
+                          label: 'Cerradas',
+                          value: '$cerradas',
+                          color: const Color(0xFF6B7280),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              alignment: WrapAlignment.spaceBetween,
+              children: [
+                SizedBox(
+                  width: mobile ? double.infinity : 320,
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Buscar próxima actividad o descripción...',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    onChanged: (value) =>
+                        setState(() => search = value.toLowerCase().trim()),
+                  ),
+                ),
+                SizedBox(
+                  width: mobile ? double.infinity : 220,
+                  child: DropdownButtonFormField<String>(
+                    value: selectedStatus,
+                    decoration: const InputDecoration(
+                      labelText: 'Filtrar lista por estado',
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'todos', child: Text('Todos')),
+                      DropdownMenuItem(
+                        value: 'programada',
+                        child: Text('Programada'),
+                      ),
+                      DropdownMenuItem(value: 'activa', child: Text('Activa')),
+                      DropdownMenuItem(
+                        value: 'cerrada',
+                        child: Text('Cerrada'),
                       ),
                     ],
-                  );
-                },
-              ),
-            FilledButton.icon(
-              onPressed: () => _showActividadDialog(context),
-              icon: const Icon(Icons.add),
-              label: const Text('Nueva actividad'),
+                    onChanged: (value) =>
+                        setState(() => selectedStatus = value ?? 'todos'),
+                  ),
+                ),
+                if (isAdmin(widget.leader.role))
+                  FilledButton.icon(
+                    onPressed: () => _showActividadDialog(context),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Nueva actividad'),
+                  ),
+              ],
             ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Expanded(
-          child: Card(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _activitiesQuery().snapshots(),
-              builder: (context, snap) {
-                if (!snap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final docs = snap.data!.docs;
-                if (docs.isEmpty) {
-                  return const Center(child: Text('No hay actividades.'));
-                }
-
-                return ListView.separated(
-                  padding: const EdgeInsets.all(14),
-                  itemCount: docs.length,
-                  separatorBuilder: (_, __) => const Divider(height: 24),
-                  itemBuilder: (context, index) {
-                    final d = docs[index];
-                    final data = d.data();
-
-                    if (mobile) {
-                      return Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Chip(
+                    avatar: const Icon(Icons.view_list_outlined, size: 18),
+                    label: Text('${filteredDocs.length} visibles'),
+                  ),
+                  const Chip(
+                    avatar: Icon(Icons.trending_up, size: 18),
+                    label: Text('Ordenadas por cercanía'),
+                  ),
+                  if (selectedStatus != 'todos')
+                    Chip(
+                      avatar: const Icon(Icons.filter_alt_outlined, size: 18),
+                      label: Text(
+                        'Estado: ${_activityStatusLabel(selectedStatus)}',
+                      ),
+                    ),
+                  if (search.isNotEmpty)
+                    const Chip(
+                      avatar: Icon(Icons.search, size: 18),
+                      label: Text('Búsqueda aplicada'),
+                    ),
+                ],
+              ),
+            ),
+            if (isAdmin(widget.leader.role)) ...[
+              const SizedBox(height: 14),
+              FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                future: db.collection('leaders').get(),
+                builder: (context, leaderSnap) {
+                  final leaders = leaderSnap.data?.docs ?? [];
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
                             children: [
-                              Text(
-                                safeString(data, 'nombre', 'Actividad'),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
+                              Icon(
+                                Icons.tune_outlined,
+                                color: Color(0xFF6A3EC5),
+                              ),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Filtros que se aplican al abrir asistencia',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '${_formatAnyDate(data["fecha"])} · ${safeString(data, "estado")}',
-                              ),
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  FilledButton.tonalIcon(
-                                    onPressed: () => _openAttendance(
-                                      context,
-                                      d.id,
-                                      data,
-                                    ),
-                                    icon: const Icon(Icons.how_to_reg),
-                                    label: const Text('Asistencia'),
-                                  ),
-                                  IconButton.filledTonal(
-                                    onPressed: () => _showActividadDialog(
-                                      context,
-                                      docId: d.id,
-                                      initial: data,
-                                    ),
-                                    icon: const Icon(Icons.edit_outlined),
-                                  ),
-                                  IconButton.filledTonal(
-                                    onPressed: () => _deleteDoc(
-                                      'actividades',
-                                      d.id,
-                                      context,
-                                    ),
-                                    icon: const Icon(Icons.delete_outline),
-                                  ),
-                                ],
                               ),
                             ],
                           ),
-                        ),
-                      );
-                    }
-
-                    return ListTile(
-                      title: Text(safeString(data, 'nombre', 'Actividad')),
-                      subtitle: Text(
-                        '${_formatAnyDate(data["fecha"])} · ${safeString(data, "estado")}',
-                      ),
-                      trailing: Wrap(
-                        spacing: 8,
-                        children: [
-                          FilledButton.tonalIcon(
-                            onPressed: () =>
-                                _openAttendance(context, d.id, data),
-                            icon: const Icon(Icons.how_to_reg),
-                            label: const Text('Asistencia'),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Estos filtros no cambian la lista de actividades. Solo se usan cuando presionas "Abrir asistencia" en una actividad.',
+                            style: TextStyle(color: Colors.black54),
                           ),
-                          IconButton(
-                            onPressed: () => _showActividadDialog(
-                              context,
-                              docId: d.id,
-                              initial: data,
-                            ),
-                            icon: const Icon(Icons.edit_outlined),
-                          ),
-                          IconButton(
-                            onPressed: () =>
-                                _deleteDoc('actividades', d.id, context),
-                            icon: const Icon(Icons.delete_outline),
+                          const SizedBox(height: 14),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: [
+                              SizedBox(
+                                width: mobile ? double.infinity : 240,
+                                child: DropdownButtonFormField<String?>(
+                                  value: selectedLeaderId,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Líder para asistencia',
+                                  ),
+                                  items: [
+                                    const DropdownMenuItem<String?>(
+                                      value: null,
+                                      child: Text('Todos'),
+                                    ),
+                                    ...leaders.map(
+                                      (e) => DropdownMenuItem<String?>(
+                                        value: e.id,
+                                        child: Text(
+                                          safeString(
+                                            e.data(),
+                                            'name',
+                                            'Sin nombre',
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: (value) =>
+                                      setState(() => selectedLeaderId = value),
+                                ),
+                              ),
+                              SizedBox(
+                                width: mobile ? double.infinity : 240,
+                                child: DropdownButtonFormField<String?>(
+                                  value: selectedZone,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Zona para asistencia',
+                                  ),
+                                  items: [
+                                    const DropdownMenuItem<String?>(
+                                      value: null,
+                                      child: Text('Todas'),
+                                    ),
+                                    ...leaders
+                                        .map((e) => safeString(e.data(), 'zone'))
+                                        .where((zone) => zone.isNotEmpty)
+                                        .toSet()
+                                        .map(
+                                          (zone) => DropdownMenuItem<String?>(
+                                            value: zone,
+                                            child: Text(zone),
+                                          ),
+                                        ),
+                                  ],
+                                  onChanged: (value) =>
+                                      setState(() => selectedZone = value),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    );
-                  },
-                );
-              },
+                    ),
+                  );
+                },
+              ),
+            ],
+            const SizedBox(height: 14),
+            Card(
+              child: filteredDocs.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Center(
+                        child: Text(
+                          docs.isEmpty
+                              ? 'No hay actividades.'
+                              : 'No hay actividades que coincidan con la búsqueda o el estado seleccionado.',
+                        ),
+                      ),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        children: [
+                          for (var index = 0; index < filteredDocs.length; index++) ...[
+                            _buildActivityItem(
+                              context,
+                              filteredDocs[index],
+                              nextActivity?.id == filteredDocs[index].id,
+                              mobile,
+                            ),
+                            if (index != filteredDocs.length - 1)
+                              const Divider(height: 24),
+                          ],
+                        ],
+                      ),
+                    ),
             ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildActivityItem(
+    BuildContext context,
+    QueryDocumentSnapshot<Map<String, dynamic>> d,
+    bool isNextActivity,
+    bool mobile,
+  ) {
+    final data = d.data();
+    final status = safeString(data, 'estado', 'programada');
+    final relativeDate = _formatRelativeActivityDate(data['fecha']);
+
+    if (mobile) {
+      return Card(
+        elevation: 0,
+        color: isNextActivity ? const Color(0xFFFCFBFF) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: isNextActivity
+                ? const Color(0xFFBBA7F7)
+                : const Color(0xFFE8EAF1),
           ),
         ),
-      ],
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isNextActivity) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDE6FF),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'Más cercana',
+                    style: TextStyle(
+                      color: Color(0xFF6A3EC5),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEDE6FF),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(
+                      Icons.event_note,
+                      color: _activityStatusColor(status),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      safeString(data, 'nombre', 'Actividad'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _ActivityStatusChip(status: status),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _ActivityInfoPill(
+                    icon: Icons.schedule,
+                    label: relativeDate,
+                    tone: _activityStatusColor(status),
+                  ),
+                  if (_formatAnyDate(data['fecha']).isNotEmpty)
+                    _ActivityInfoPill(
+                      icon: Icons.calendar_today_outlined,
+                      label: _formatAnyDate(data['fecha']),
+                      tone: const Color(0xFF2563EB),
+                    ),
+                ],
+              ),
+              if (safeString(data, 'descripcion').isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _truncateText(safeString(data, 'descripcion')),
+                    style: const TextStyle(
+                      color: Colors.black87,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: () => _openAttendance(context, d.id, data),
+                    icon: const Icon(Icons.how_to_reg),
+                    label: const Text('Abrir asistencia'),
+                  ),
+                  if (isAdmin(widget.leader.role))
+                    IconButton.filledTonal(
+                      onPressed: () => _showActividadDialog(
+                        context,
+                        docId: d.id,
+                        initial: data,
+                      ),
+                      icon: const Icon(Icons.edit_outlined),
+                    ),
+                  if (isAdmin(widget.leader.role))
+                    IconButton.filledTonal(
+                      onPressed: () => _deleteDoc('actividades', d.id, context),
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 6,
+      ),
+      leading: CircleAvatar(
+        backgroundColor: const Color(0xFFEDE6FF),
+        child: Icon(
+          Icons.event_note,
+          color: _activityStatusColor(status),
+        ),
+      ),
+      title: Text(
+        safeString(data, 'nombre', 'Actividad'),
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (isNextActivity)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEDE6FF),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: const Text(
+                      'Más cercana',
+                      style: TextStyle(
+                        color: Color(0xFF6A3EC5),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                Text(
+                  '${_formatAnyDate(data["fecha"])} · $relativeDate',
+                  style: const TextStyle(
+                    color: Colors.black54,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _truncateText(
+                safeString(data, 'descripcion', 'Sin descripción'),
+                maxLength: 90,
+              ),
+            ),
+          ],
+        ),
+      ),
+      trailing: Wrap(
+        spacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          _ActivityStatusChip(status: status),
+          FilledButton.tonalIcon(
+            onPressed: () => _openAttendance(context, d.id, data),
+            icon: const Icon(Icons.how_to_reg),
+            label: const Text('Abrir asistencia'),
+          ),
+          if (isAdmin(widget.leader.role))
+            IconButton(
+              tooltip: 'Editar actividad',
+              onPressed: () => _showActividadDialog(
+                context,
+                docId: d.id,
+                initial: data,
+              ),
+              icon: const Icon(Icons.edit_outlined),
+            ),
+          if (isAdmin(widget.leader.role))
+            IconButton(
+              tooltip: 'Eliminar actividad',
+              onPressed: () => _deleteDoc('actividades', d.id, context),
+              icon: const Icon(Icons.delete_outline),
+            ),
+        ],
+      ),
     );
   }
 
@@ -2831,11 +3878,20 @@ Future<void> _showActividadDialog(
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: fechaCtrl,
+                  readOnly: true,
+                  onTap: () => _pickDateIntoController(context, fechaCtrl),
                   decoration: const InputDecoration(
                     labelText: 'Fecha (yyyy-MM-dd)',
+                    suffixIcon: Icon(Icons.calendar_today_outlined),
                   ),
-                  validator: (v) =>
-                      (v ?? '').trim().isEmpty ? 'Requerido.' : null,
+                  validator: (v) {
+                    final value = (v ?? '').trim();
+                    if (value.isEmpty) return 'Requerido.';
+                    if (!_isValidDateInput(value)) {
+                      return 'Usa una fecha válida.';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 10),
                 TextFormField(
@@ -2921,7 +3977,31 @@ class AsistenciaPage extends StatefulWidget {
   State<AsistenciaPage> createState() => _AsistenciaPageState();
 }
 
+class _AttendancePageData {
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> jovenes;
+  final Map<String, bool> attendedByJovenId;
+  final Map<String, String> docIdByJovenId;
+
+  const _AttendancePageData({
+    required this.jovenes,
+    required this.attendedByJovenId,
+    required this.docIdByJovenId,
+  });
+}
+
 class _AsistenciaPageState extends State<AsistenciaPage> {
+  late Future<_AttendancePageData> _pageDataFuture;
+  final Map<String, bool> _localAttendance = {};
+  final Map<String, bool> _savedAttendance = {};
+  final Map<String, String> _attendanceDocIds = {};
+  bool _savingAll = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageDataFuture = _loadPageData();
+  }
+
   Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
       _loadJovenes() async {
     Query<Map<String, dynamic>> query = db.collection('jovenes');
@@ -2945,84 +4025,336 @@ class _AsistenciaPageState extends State<AsistenciaPage> {
           docs.where((e) => allowedIds.contains(e.data()['leaderId'])).toList();
     }
 
+    docs.sort((a, b) {
+      final aName = safeString(a.data(), 'nombre', 'Joven sin nombre')
+          .trim()
+          .toLowerCase();
+      final bName = safeString(b.data(), 'nombre', 'Joven sin nombre')
+          .trim()
+          .toLowerCase();
+      return aName.compareTo(bName);
+    });
+
     return docs;
   }
 
-  Future<bool> _getAttendance(String jovenId) async {
-    final snap = await db
+  Future<_AttendancePageData> _loadPageData() async {
+    final jovenes = await _loadJovenes();
+    final attendanceSnap = await db
         .collection('asistencias')
         .where('activityId', isEqualTo: widget.activityId)
-        .where('jovenId', isEqualTo: jovenId)
-        .limit(1)
         .get();
 
-    if (snap.docs.isEmpty) return false;
-    return (snap.docs.first.data()['attended'] ?? false) == true;
+    final attendedByJovenId = <String, bool>{};
+    final docIdByJovenId = <String, String>{};
+    for (final doc in attendanceSnap.docs) {
+      final data = doc.data();
+      final jovenId = safeString(data, 'jovenId');
+      if (jovenId.isEmpty) continue;
+      attendedByJovenId[jovenId] = data['attended'] == true;
+      docIdByJovenId[jovenId] = doc.id;
+    }
+
+    return _AttendancePageData(
+      jovenes: jovenes,
+      attendedByJovenId: attendedByJovenId,
+      docIdByJovenId: docIdByJovenId,
+    );
   }
 
-  Future<void> _saveAttendance(String jovenId, bool attended) async {
-    final snap = await db
-        .collection('asistencias')
-        .where('activityId', isEqualTo: widget.activityId)
-        .where('jovenId', isEqualTo: jovenId)
-        .limit(1)
-        .get();
+  Future<void> _saveAllAttendance(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> jovenes,
+  ) async {
+    if (_savingAll) return;
 
-    final payload = <String, dynamic>{
-      'activityId': widget.activityId,
-      'jovenId': jovenId,
-      'attended': attended,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
+    final changedIds = jovenes
+        .map((e) => e.id)
+        .where((id) => (_localAttendance[id] ?? false) != (_savedAttendance[id] ?? false))
+        .toList();
 
-    if (snap.docs.isEmpty) {
-      payload['createdAt'] = FieldValue.serverTimestamp();
-      await db.collection('asistencias').add(payload);
-    } else {
-      await db.collection('asistencias').doc(snap.docs.first.id).set(
-            payload,
-            SetOptions(merge: true),
-          );
+    if (changedIds.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay cambios pendientes por guardar.')),
+      );
+      return;
+    }
+
+    setState(() => _savingAll = true);
+    try {
+      final batch = db.batch();
+      final newDocIds = <String, String>{};
+
+      for (final jovenId in changedIds) {
+        final attended = _localAttendance[jovenId] ?? false;
+        final docId = _attendanceDocIds[jovenId];
+        final docRef = docId == null
+            ? db.collection('asistencias').doc()
+            : db.collection('asistencias').doc(docId);
+
+        final payload = <String, dynamic>{
+          'activityId': widget.activityId,
+          'jovenId': jovenId,
+          'attended': attended,
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+
+        if (docId == null) {
+          payload['createdAt'] = FieldValue.serverTimestamp();
+          newDocIds[jovenId] = docRef.id;
+        }
+
+        batch.set(docRef, payload, SetOptions(merge: true));
+      }
+
+      await batch.commit();
+
+      _attendanceDocIds.addAll(newDocIds);
+      for (final jovenId in changedIds) {
+        _savedAttendance[jovenId] = _localAttendance[jovenId] ?? false;
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            changedIds.length == 1
+                ? 'Asistencia guardada correctamente.'
+                : 'Se guardaron ${changedIds.length} cambios de asistencia.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo guardar la asistencia. Intenta de nuevo.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _savingAll = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final activityName = safeString(widget.activityData, 'nombre', 'Actividad');
+    final activityStatus = safeString(
+      widget.activityData,
+      'estado',
+      'programada',
+    );
+    final activityDate = _formatAnyDate(widget.activityData['fecha']);
+    final relativeDate = _formatRelativeActivityDate(widget.activityData['fecha']);
 
     return Scaffold(
-      appBar: AppBar(title: Text('Asistencia · $activityName')),
+      appBar: AppBar(
+        title: Text('Pase de asistencia · $activityName'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Center(
+              child: _ActivityStatusChip(status: activityStatus),
+            ),
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(18),
-        child: FutureBuilder<List<QueryDocumentSnapshot<Map<String, dynamic>>>>(
-          future: _loadJovenes(),
+        child: FutureBuilder<_AttendancePageData>(
+          future: _pageDataFuture,
           builder: (context, snap) {
+            if (snap.hasError) {
+              return const Center(
+                child: Text('No se pudo cargar la asistencia.'),
+              );
+            }
             if (!snap.hasData) {
               return const Center(child: CircularProgressIndicator());
             }
-            final jovenes = snap.data!;
+            final pageData = snap.data!;
+            if (_attendanceDocIds.isEmpty) {
+              _attendanceDocIds.addAll(pageData.docIdByJovenId);
+            }
+            if (_savedAttendance.isEmpty) {
+              _savedAttendance.addAll(pageData.attendedByJovenId);
+            }
+            if (_localAttendance.isEmpty) {
+              _localAttendance.addAll(pageData.attendedByJovenId);
+            }
+
+            final jovenes = pageData.jovenes;
             if (jovenes.isEmpty) {
               return const Center(child: Text('No hay jóvenes para mostrar.'));
             }
 
-            return ListView.separated(
-              itemCount: jovenes.length,
-              separatorBuilder: (_, __) => const Divider(height: 24),
-              itemBuilder: (context, index) {
-                final joven = jovenes[index];
-                final data = joven.data();
-                return FutureBuilder<bool>(
-                  future: _getAttendance(joven.id),
-                  builder: (context, attSnap) {
-                    return _AttendanceTile(
-                      jovenNombre: safeString(data, 'nombre'),
-                      telefono: safeString(data, 'telefono'),
-                      initialValue: attSnap.data ?? false,
-                      onChanged: (value) => _saveAttendance(joven.id, value),
-                    );
-                  },
-                );
-              },
+            final presentCount = jovenes
+                .where((joven) => _localAttendance[joven.id] == true)
+                .length;
+            final changedCount = jovenes
+                .where((joven) =>
+                    (_localAttendance[joven.id] ?? false) !=
+                    (_savedAttendance[joven.id] ?? false))
+                .length;
+
+            return ListView(
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Resumen de la actividad',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            _ActivityInfoPill(
+                              icon: Icons.calendar_today_outlined,
+                              label: activityDate.isEmpty
+                                  ? 'Fecha sin validar'
+                                  : activityDate,
+                              tone: const Color(0xFF2563EB),
+                            ),
+                            _ActivityInfoPill(
+                              icon: Icons.schedule,
+                              label: relativeDate,
+                              tone: _activityStatusColor(activityStatus),
+                            ),
+                            Chip(
+                              avatar:
+                                  const Icon(Icons.people_outline, size: 18),
+                              label: Text('${jovenes.length} jóvenes visibles'),
+                            ),
+                            Chip(
+                              avatar: const Icon(Icons.check_circle_outline,
+                                  size: 18),
+                              label: Text('$presentCount marcados presentes'),
+                            ),
+                            if (changedCount > 0)
+                              Chip(
+                                avatar: const Icon(Icons.edit_outlined, size: 18),
+                                label: Text('$changedCount cambios sin guardar'),
+                              ),
+                            if (widget.selectedLeaderId != null)
+                              const Chip(
+                                avatar: Icon(
+                                  Icons.manage_accounts_outlined,
+                                  size: 18,
+                                ),
+                                label: Text('Filtro por líder aplicado'),
+                              ),
+                            if (widget.selectedZone != null &&
+                                widget.selectedZone!.isNotEmpty)
+                              Chip(
+                                avatar:
+                                    const Icon(Icons.place_outlined, size: 18),
+                                label: Text('Zona: ${widget.selectedZone}'),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        const Text(
+                          'Marca la asistencia de cada joven y presiona Guardar cuando termines de revisar los cambios.',
+                          style: TextStyle(color: Colors.black54, height: 1.45),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            changedCount == 0
+                                ? 'Todos los cambios están guardados.'
+                                : 'Tienes $changedCount cambio(s) pendiente(s) por guardar.',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton.icon(
+                          onPressed: _savingAll
+                              ? null
+                              : () => _saveAllAttendance(jovenes),
+                          icon: _savingAll
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.save_outlined),
+                          label: Text(
+                            _savingAll ? 'Guardando...' : 'Guardar',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ...List.generate(jovenes.length, (index) {
+                  final joven = jovenes[index];
+                  final jovenData = joven.data();
+                  final currentValue = _localAttendance[joven.id] ?? false;
+                  final savedValue = _savedAttendance[joven.id] ?? false;
+
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      bottom: index == jovenes.length - 1 ? 0 : 14,
+                    ),
+                    child: _AttendanceTile(
+                      jovenNombre: safeString(
+                        jovenData,
+                        'nombre',
+                        'Joven sin nombre',
+                      ),
+                      telefono: safeString(
+                        jovenData,
+                        'telefono',
+                        'Sin teléfono',
+                      ),
+                      initialValue: currentValue,
+                      hasPendingChanges: currentValue != savedValue,
+                      onChanged: (value) {
+                        setState(() => _localAttendance[joven.id] = value);
+                      },
+                    ),
+                  );
+                }),
+                const SizedBox(height: 18),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    onPressed:
+                        _savingAll ? null : () => _saveAllAttendance(jovenes),
+                    icon: _savingAll
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save_outlined),
+                    label: Text(_savingAll ? 'Guardando...' : 'Guardar'),
+                  ),
+                ),
+              ],
             );
           },
         ),
@@ -3035,12 +4367,14 @@ class _AttendanceTile extends StatefulWidget {
   final String jovenNombre;
   final String telefono;
   final bool initialValue;
-  final Future<void> Function(bool value) onChanged;
+  final bool hasPendingChanges;
+  final ValueChanged<bool> onChanged;
 
   const _AttendanceTile({
     required this.jovenNombre,
     required this.telefono,
     required this.initialValue,
+    required this.hasPendingChanges,
     required this.onChanged,
   });
 
@@ -3050,7 +4384,6 @@ class _AttendanceTile extends StatefulWidget {
 
 class _AttendanceTileState extends State<_AttendanceTile> {
   late bool currentValue;
-  bool saving = false;
 
   @override
   void initState() {
@@ -3061,31 +4394,118 @@ class _AttendanceTileState extends State<_AttendanceTile> {
   @override
   void didUpdateWidget(covariant _AttendanceTile oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialValue != widget.initialValue && !saving) {
+    if (oldWidget.initialValue != widget.initialValue) {
       currentValue = widget.initialValue;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final accent = currentValue ? const Color(0xFF0F9D58) : const Color(0xFF6B7280);
     return Card(
-      child: SwitchListTile(
-        value: currentValue,
-        title: Text(
-          widget.jovenNombre,
-          style: const TextStyle(fontWeight: FontWeight.w700),
+      color: widget.hasPendingChanges ? const Color(0xFFFCFBFF) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: widget.hasPendingChanges
+              ? const Color(0xFFBBA7F7)
+              : const Color(0xFFE8EAF1),
         ),
-        subtitle: Text('Tel: ${widget.telefono}'),
-        onChanged: (v) async {
-          setState(() {
-            currentValue = v;
-            saving = true;
-          });
-          await widget.onChanged(v);
-          if (mounted) {
-            setState(() => saving = false);
-          }
-        },
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: accent.withOpacity(.12),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                currentValue ? Icons.check_circle_outline : Icons.person_outline,
+                color: accent,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.jovenNombre.trim().isEmpty
+                              ? 'Joven sin nombre'
+                              : widget.jovenNombre,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ),
+                      if (widget.hasPendingChanges)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEDE6FF),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Text(
+                            'Pendiente',
+                            style: TextStyle(
+                              color: Color(0xFF6A3EC5),
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Tel: ${widget.telefono.trim().isEmpty ? "Sin teléfono" : widget.telefono}',
+                    style: const TextStyle(color: Colors.black54),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: accent.withOpacity(.10),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          currentValue ? 'Presente' : 'Ausente',
+                          style: TextStyle(
+                            color: accent,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Switch(
+              value: currentValue,
+              onChanged: (v) {
+                setState(() => currentValue = v);
+                widget.onChanged(v);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
