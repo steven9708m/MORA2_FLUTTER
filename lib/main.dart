@@ -1098,8 +1098,9 @@ class DashboardPage extends StatelessWidget {
               children: [
                 Expanded(
                   child: _Panel(
-                    title:
-                        isAdmin(leader.role) ? 'Líderes recientes' : 'Mi perfil',
+                    title: isAdmin(leader.role)
+                        ? 'Líderes recientes'
+                        : 'Mi perfil',
                     child: isAdmin(leader.role)
                         ? const _RecentLeadersPanel()
                         : _LeaderSummaryPanel(leader: leader),
@@ -1120,8 +1121,9 @@ class DashboardPage extends StatelessWidget {
           ],
           const SizedBox(height: 16),
           _Panel(
-            title:
-                isAdmin(leader.role) ? 'Asistencia por actividad' : 'Asistencia',
+            title: isAdmin(leader.role)
+                ? 'Asistencia por actividad'
+                : 'Asistencia',
             child: isAdmin(leader.role)
                 ? const _AttendanceByActivityPanel()
                 : const _LeaderAttendanceHint(),
@@ -1570,7 +1572,8 @@ class _RecentActivitiesPanel extends StatelessWidget {
         if (!snap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final docs = _sortActivitiesByProximity(snap.data!.docs).take(5).toList();
+        final docs =
+            _sortActivitiesByProximity(snap.data!.docs).take(5).toList();
         if (docs.isEmpty) {
           return const _EmptyData('No hay actividades registradas.');
         }
@@ -3535,7 +3538,8 @@ class _ActividadesPageState extends State<ActividadesPage> {
                                       child: Text('Todas'),
                                     ),
                                     ...leaders
-                                        .map((e) => safeString(e.data(), 'zone'))
+                                        .map(
+                                            (e) => safeString(e.data(), 'zone'))
                                         .where((zone) => zone.isNotEmpty)
                                         .toSet()
                                         .map(
@@ -3575,7 +3579,9 @@ class _ActividadesPageState extends State<ActividadesPage> {
                       padding: const EdgeInsets.all(14),
                       child: Column(
                         children: [
-                          for (var index = 0; index < filteredDocs.length; index++) ...[
+                          for (var index = 0;
+                              index < filteredDocs.length;
+                              index++) ...[
                             _buildActivityItem(
                               context,
                               filteredDocs[index],
@@ -3992,9 +3998,7 @@ class _AttendancePageData {
 class _AsistenciaPageState extends State<AsistenciaPage> {
   late Future<_AttendancePageData> _pageDataFuture;
   final Map<String, bool> _localAttendance = {};
-  final Map<String, bool> _savedAttendance = {};
   final Map<String, String> _attendanceDocIds = {};
-  bool _savingAll = false;
 
   @override
   void initState() {
@@ -4025,16 +4029,6 @@ class _AsistenciaPageState extends State<AsistenciaPage> {
           docs.where((e) => allowedIds.contains(e.data()['leaderId'])).toList();
     }
 
-    docs.sort((a, b) {
-      final aName = safeString(a.data(), 'nombre', 'Joven sin nombre')
-          .trim()
-          .toLowerCase();
-      final bName = safeString(b.data(), 'nombre', 'Joven sin nombre')
-          .trim()
-          .toLowerCase();
-      return aName.compareTo(bName);
-    });
-
     return docs;
   }
 
@@ -4062,103 +4056,33 @@ class _AsistenciaPageState extends State<AsistenciaPage> {
     );
   }
 
-  Future<void> _saveAllAttendance(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> jovenes,
-  ) async {
-    if (_savingAll) return;
+  Future<void> _saveAttendance(String jovenId, bool attended) async {
+    final payload = <String, dynamic>{
+      'activityId': widget.activityId,
+      'jovenId': jovenId,
+      'attended': attended,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
 
-    final changedIds = jovenes
-        .map((e) => e.id)
-        .where((id) => (_localAttendance[id] ?? false) != (_savedAttendance[id] ?? false))
-        .toList();
-
-    if (changedIds.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay cambios pendientes por guardar.')),
-      );
-      return;
-    }
-
-    setState(() => _savingAll = true);
-    try {
-      final batch = db.batch();
-      final newDocIds = <String, String>{};
-
-      for (final jovenId in changedIds) {
-        final attended = _localAttendance[jovenId] ?? false;
-        final docId = _attendanceDocIds[jovenId];
-        final docRef = docId == null
-            ? db.collection('asistencias').doc()
-            : db.collection('asistencias').doc(docId);
-
-        final payload = <String, dynamic>{
-          'activityId': widget.activityId,
-          'jovenId': jovenId,
-          'attended': attended,
-          'updatedAt': FieldValue.serverTimestamp(),
-        };
-
-        if (docId == null) {
-          payload['createdAt'] = FieldValue.serverTimestamp();
-          newDocIds[jovenId] = docRef.id;
-        }
-
-        batch.set(docRef, payload, SetOptions(merge: true));
-      }
-
-      await batch.commit();
-
-      _attendanceDocIds.addAll(newDocIds);
-      for (final jovenId in changedIds) {
-        _savedAttendance[jovenId] = _localAttendance[jovenId] ?? false;
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            changedIds.length == 1
-                ? 'Asistencia guardada correctamente.'
-                : 'Se guardaron ${changedIds.length} cambios de asistencia.',
-          ),
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo guardar la asistencia. Intenta de nuevo.'),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _savingAll = false);
+    final docId = _attendanceDocIds[jovenId];
+    if (docId == null) {
+      payload['createdAt'] = FieldValue.serverTimestamp();
+      final ref = await db.collection('asistencias').add(payload);
+      _attendanceDocIds[jovenId] = ref.id;
+    } else {
+      await db.collection('asistencias').doc(docId).set(
+            payload,
+            SetOptions(merge: true),
+          );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final activityName = safeString(widget.activityData, 'nombre', 'Actividad');
-    final activityStatus = safeString(
-      widget.activityData,
-      'estado',
-      'programada',
-    );
-    final activityDate = _formatAnyDate(widget.activityData['fecha']);
-    final relativeDate = _formatRelativeActivityDate(widget.activityData['fecha']);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Pase de asistencia · $activityName'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Center(
-              child: _ActivityStatusChip(status: activityStatus),
-            ),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text('Pase de asistencia · $activityName')),
       body: Padding(
         padding: const EdgeInsets.all(18),
         child: FutureBuilder<_AttendancePageData>(
@@ -4176,9 +4100,6 @@ class _AsistenciaPageState extends State<AsistenciaPage> {
             if (_attendanceDocIds.isEmpty) {
               _attendanceDocIds.addAll(pageData.docIdByJovenId);
             }
-            if (_savedAttendance.isEmpty) {
-              _savedAttendance.addAll(pageData.attendedByJovenId);
-            }
             if (_localAttendance.isEmpty) {
               _localAttendance.addAll(pageData.attendedByJovenId);
             }
@@ -4188,170 +4109,55 @@ class _AsistenciaPageState extends State<AsistenciaPage> {
               return const Center(child: Text('No hay jóvenes para mostrar.'));
             }
 
-            final presentCount = jovenes
-                .where((joven) => _localAttendance[joven.id] == true)
-                .length;
-            final changedCount = jovenes
-                .where((joven) =>
-                    (_localAttendance[joven.id] ?? false) !=
-                    (_savedAttendance[joven.id] ?? false))
-                .length;
-
-            return ListView(
+            return Column(
               children: [
                 Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Resumen de la actividad',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: [
-                            _ActivityInfoPill(
-                              icon: Icons.calendar_today_outlined,
-                              label: activityDate.isEmpty
-                                  ? 'Fecha sin validar'
-                                  : activityDate,
-                              tone: const Color(0xFF2563EB),
-                            ),
-                            _ActivityInfoPill(
-                              icon: Icons.schedule,
-                              label: relativeDate,
-                              tone: _activityStatusColor(activityStatus),
-                            ),
-                            Chip(
-                              avatar:
-                                  const Icon(Icons.people_outline, size: 18),
-                              label: Text('${jovenes.length} jóvenes visibles'),
-                            ),
-                            Chip(
-                              avatar: const Icon(Icons.check_circle_outline,
-                                  size: 18),
-                              label: Text('$presentCount marcados presentes'),
-                            ),
-                            if (changedCount > 0)
-                              Chip(
-                                avatar: const Icon(Icons.edit_outlined, size: 18),
-                                label: Text('$changedCount cambios sin guardar'),
-                              ),
-                            if (widget.selectedLeaderId != null)
-                              const Chip(
-                                avatar: Icon(
-                                  Icons.manage_accounts_outlined,
-                                  size: 18,
-                                ),
-                                label: Text('Filtro por líder aplicado'),
-                              ),
-                            if (widget.selectedZone != null &&
-                                widget.selectedZone!.isNotEmpty)
-                              Chip(
-                                avatar:
-                                    const Icon(Icons.place_outlined, size: 18),
-                                label: Text('Zona: ${widget.selectedZone}'),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        const Text(
-                          'Marca la asistencia de cada joven y presiona Guardar cuando termines de revisar los cambios.',
-                          style: TextStyle(color: Colors.black54, height: 1.45),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Card(
-                  child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Row(
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
                       children: [
-                        Expanded(
-                          child: Text(
-                            changedCount == 0
-                                ? 'Todos los cambios están guardados.'
-                                : 'Tienes $changedCount cambio(s) pendiente(s) por guardar.',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
+                        Chip(
+                          avatar: const Icon(Icons.people_outline, size: 18),
+                          label: Text('${jovenes.length} jóvenes visibles'),
+                        ),
+                        if (widget.selectedLeaderId != null)
+                          const Chip(
+                            avatar: Icon(
+                              Icons.manage_accounts_outlined,
+                              size: 18,
                             ),
+                            label: Text('Filtro por líder aplicado'),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        FilledButton.icon(
-                          onPressed: _savingAll
-                              ? null
-                              : () => _saveAllAttendance(jovenes),
-                          icon: _savingAll
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.save_outlined),
-                          label: Text(
-                            _savingAll ? 'Guardando...' : 'Guardar',
+                        if (widget.selectedZone != null &&
+                            widget.selectedZone!.isNotEmpty)
+                          Chip(
+                            avatar: const Icon(Icons.place_outlined, size: 18),
+                            label: Text('Zona: ${widget.selectedZone}'),
                           ),
-                        ),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 14),
-                ...List.generate(jovenes.length, (index) {
-                  final joven = jovenes[index];
-                  final jovenData = joven.data();
-                  final currentValue = _localAttendance[joven.id] ?? false;
-                  final savedValue = _savedAttendance[joven.id] ?? false;
-
-                  return Padding(
-                    padding: EdgeInsets.only(
-                      bottom: index == jovenes.length - 1 ? 0 : 14,
-                    ),
-                    child: _AttendanceTile(
-                      jovenNombre: safeString(
-                        jovenData,
-                        'nombre',
-                        'Joven sin nombre',
-                      ),
-                      telefono: safeString(
-                        jovenData,
-                        'telefono',
-                        'Sin teléfono',
-                      ),
-                      initialValue: currentValue,
-                      hasPendingChanges: currentValue != savedValue,
-                      onChanged: (value) {
-                        setState(() => _localAttendance[joven.id] = value);
-                      },
-                    ),
-                  );
-                }),
-                const SizedBox(height: 18),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton.icon(
-                    onPressed:
-                        _savingAll ? null : () => _saveAllAttendance(jovenes),
-                    icon: _savingAll
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save_outlined),
-                    label: Text(_savingAll ? 'Guardando...' : 'Guardar'),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: jovenes.length,
+                    separatorBuilder: (_, __) => const Divider(height: 24),
+                    itemBuilder: (context, index) {
+                      final joven = jovenes[index];
+                      final jovenData = joven.data();
+                      return _AttendanceTile(
+                        jovenNombre: safeString(jovenData, 'nombre'),
+                        telefono: safeString(jovenData, 'telefono'),
+                        initialValue: _localAttendance[joven.id] ?? false,
+                        onChanged: (value) async {
+                          setState(() => _localAttendance[joven.id] = value);
+                          await _saveAttendance(joven.id, value);
+                        },
+                      );
+                    },
                   ),
                 ),
               ],
@@ -4367,14 +4173,12 @@ class _AttendanceTile extends StatefulWidget {
   final String jovenNombre;
   final String telefono;
   final bool initialValue;
-  final bool hasPendingChanges;
-  final ValueChanged<bool> onChanged;
+  final Future<void> Function(bool value) onChanged;
 
   const _AttendanceTile({
     required this.jovenNombre,
     required this.telefono,
     required this.initialValue,
-    required this.hasPendingChanges,
     required this.onChanged,
   });
 
@@ -4384,6 +4188,7 @@ class _AttendanceTile extends StatefulWidget {
 
 class _AttendanceTileState extends State<_AttendanceTile> {
   late bool currentValue;
+  bool saving = false;
 
   @override
   void initState() {
@@ -4394,118 +4199,31 @@ class _AttendanceTileState extends State<_AttendanceTile> {
   @override
   void didUpdateWidget(covariant _AttendanceTile oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialValue != widget.initialValue) {
+    if (oldWidget.initialValue != widget.initialValue && !saving) {
       currentValue = widget.initialValue;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final accent = currentValue ? const Color(0xFF0F9D58) : const Color(0xFF6B7280);
     return Card(
-      color: widget.hasPendingChanges ? const Color(0xFFFCFBFF) : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: widget.hasPendingChanges
-              ? const Color(0xFFBBA7F7)
-              : const Color(0xFFE8EAF1),
+      child: SwitchListTile(
+        value: currentValue,
+        title: Text(
+          widget.jovenNombre,
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: accent.withOpacity(.12),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(
-                currentValue ? Icons.check_circle_outline : Icons.person_outline,
-                color: accent,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.jovenNombre.trim().isEmpty
-                              ? 'Joven sin nombre'
-                              : widget.jovenNombre,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 18,
-                          ),
-                        ),
-                      ),
-                      if (widget.hasPendingChanges)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEDE6FF),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: const Text(
-                            'Pendiente',
-                            style: TextStyle(
-                              color: Color(0xFF6A3EC5),
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Tel: ${widget.telefono.trim().isEmpty ? "Sin teléfono" : widget.telefono}',
-                    style: const TextStyle(color: Colors.black54),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: accent.withOpacity(.10),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          currentValue ? 'Presente' : 'Ausente',
-                          style: TextStyle(
-                            color: accent,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Switch(
-              value: currentValue,
-              onChanged: (v) {
-                setState(() => currentValue = v);
-                widget.onChanged(v);
-              },
-            ),
-          ],
-        ),
+        subtitle: Text('Tel: ${widget.telefono}'),
+        onChanged: (v) async {
+          setState(() {
+            currentValue = v;
+            saving = true;
+          });
+          await widget.onChanged(v);
+          if (mounted) {
+            setState(() => saving = false);
+          }
+        },
       ),
     );
   }
