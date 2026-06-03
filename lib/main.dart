@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:universal_html/html.dart' as html;
 
+import 'app_theme.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -33,53 +34,7 @@ class JVApp extends StatelessWidget {
     return MaterialApp(
       title: 'JV Líderes',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6A3EC5),
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF4F6FB),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          centerTitle: false,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 0,
-          color: Colors.white,
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
-            side: const BorderSide(color: Color(0xFFE8EAF1)),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFFD8DDEA)),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFFD8DDEA)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFF6A3EC5), width: 1.5),
-          ),
-        ),
-        snackBarTheme: SnackBarThemeData(
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-      ),
+      theme: JVTheme.light,
       home: const AuthGate(),
     );
   }
@@ -740,14 +695,19 @@ class _HomeShellState extends State<HomeShell> {
     final useRail = !mobile;
     final railExtended = width >= 1320;
     final pages = _pages();
+    final currentItem = _items[selectedIndex];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_items[selectedIndex].title),
+        titleSpacing: mobile ? 16 : 24,
+        title: Text(
+          currentItem.title,
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
         actions: [
           if (!mobile)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               child: Center(
                 child: Chip(
                   avatar: const Icon(Icons.verified_user, size: 18),
@@ -783,11 +743,11 @@ class _HomeShellState extends State<HomeShell> {
         children: [
           if (useRail)
             Container(
-              width: railExtended ? 280 : (tablet ? 88 : 96),
+              width: railExtended ? 260 : (tablet ? 88 : 96),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 border: Border(
-                  right: BorderSide(color: Color(0xFFE8EAF1)),
+                  right: BorderSide(color: Color(0xFFE5E7EB)),
                 ),
               ),
               child: SafeArea(
@@ -800,7 +760,7 @@ class _HomeShellState extends State<HomeShell> {
                         extended: railExtended,
                         leader: widget.leader,
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 14),
                       Expanded(
                         child: NavigationRail(
                           selectedIndex: selectedIndex,
@@ -832,12 +792,37 @@ class _HomeShellState extends State<HomeShell> {
             child: SafeArea(
               child: Padding(
                 padding: EdgeInsets.all(mobile ? 12 : 18),
-                child: pages[selectedIndex],
+                child: _PageFrame(child: pages[selectedIndex]),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PageFrame extends StatelessWidget {
+  final Widget child;
+
+  const _PageFrame({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth =
+            constraints.maxWidth > 1440 ? 1440.0 : constraints.maxWidth;
+
+        return Align(
+          alignment: Alignment.topCenter,
+          child: SizedBox(
+            width: maxWidth,
+            height: constraints.maxHeight,
+            child: child,
+          ),
+        );
+      },
     );
   }
 }
@@ -924,43 +909,44 @@ class _SidebarBrand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(extended ? 18 : 12),
-        child: extended
-            ? Column(
-                children: [
-                  const CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Color(0xFF6A3EC5),
-                    child: Icon(Icons.groups, color: Colors.white, size: 28),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'JV Líderes',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    leader.name,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Chip(
-                    label: Text(
-                      isAdmin(leader.role) ? 'Administrador' : 'Líder',
-                    ),
-                  ),
-                ],
-              )
-            : const Center(
-                child: CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Color(0xFF6A3EC5),
-                  child: Icon(Icons.groups, color: Colors.white),
+    if (!extended) {
+      return const Center(
+        child: CircleAvatar(
+          radius: 24,
+          backgroundColor: Color(0xFF4F46E5),
+          child: Icon(Icons.groups, color: Colors.white),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: Row(
+        children: [
+          const CircleAvatar(
+            radius: 22,
+            backgroundColor: Color(0xFF4F46E5),
+            child: Icon(Icons.groups, color: Colors.white),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'JV Líderes',
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
                 ),
-              ),
+                Text(
+                  leader.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Color(0xFF6B7280)),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1005,46 +991,67 @@ class DashboardPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final mobile = width < 900;
+    final metrics = [
+      _MetricCard(
+        width: mobile ? double.infinity : 0,
+        title: 'Líderes',
+        icon: Icons.manage_accounts,
+        stream: _leadersMetricStream(),
+      ),
+      _MetricCard(
+        width: mobile ? double.infinity : 0,
+        title: 'Reportes',
+        icon: Icons.assessment,
+        stream: _queryFor('reportes').snapshots(),
+      ),
+      _MetricCard(
+        width: mobile ? double.infinity : 0,
+        title: 'Jóvenes',
+        icon: Icons.groups,
+        stream: _queryFor('jovenes').snapshots(),
+      ),
+      _MetricCard(
+        width: mobile ? double.infinity : 0,
+        title: 'Actividades',
+        icon: Icons.event_note,
+        stream: db.collection('actividades').snapshots(),
+      ),
+    ];
 
     return SingleChildScrollView(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _WelcomeHeader(leader: leader),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 14,
-            runSpacing: 14,
-            children: [
-              _MetricCard(
-                width: mobile ? double.infinity : 250,
-                title: 'Líderes',
-                icon: Icons.manage_accounts,
-                stream: _leadersMetricStream(),
-              ),
-              _MetricCard(
-                width: mobile ? double.infinity : 250,
-                title: 'Reportes',
-                icon: Icons.assessment,
-                stream: _queryFor('reportes').snapshots(),
-              ),
-              _MetricCard(
-                width: mobile ? double.infinity : 250,
-                title: 'Jóvenes',
-                icon: Icons.groups,
-                stream: _queryFor('jovenes').snapshots(),
-              ),
-              _MetricCard(
-                width: mobile ? double.infinity : 250,
-                title: 'Actividades',
-                icon: Icons.event_note,
-                stream: db.collection('actividades').snapshots(),
-              ),
-            ],
-          ),
+          const SizedBox(height: 16),
+          if (mobile)
+            Column(
+              children: metrics
+                  .map(
+                    (metric) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: metric,
+                    ),
+                  )
+                  .toList(),
+            )
+          else
+            Row(
+              children: metrics.asMap().entries.map((entry) {
+                return Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: entry.key == metrics.length - 1 ? 0 : 14,
+                    ),
+                    child: entry.value,
+                  ),
+                );
+              }).toList(),
+            ),
           const SizedBox(height: 16),
           if (mobile) ...[
             _Panel(
-              title: 'Jóvenes por líder',
+              title: 'Distribución de jóvenes',
               child: _YoungPeopleByLeaderChart(
                 currentUser: currentUser,
                 leader: leader,
@@ -1057,10 +1064,12 @@ class DashboardPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             _Panel(
-              title: isAdmin(leader.role) ? 'Líderes recientes' : 'Mi perfil',
+              title: isAdmin(leader.role)
+                  ? 'Asistencia por actividad'
+                  : 'Asistencia',
               child: isAdmin(leader.role)
-                  ? const _RecentLeadersPanel()
-                  : _LeaderSummaryPanel(leader: leader),
+                  ? const _AttendanceByActivityPanel()
+                  : const _LeaderAttendanceHint(),
             ),
             if (isAdmin(leader.role)) ...[
               const SizedBox(height: 16),
@@ -1076,7 +1085,7 @@ class DashboardPage extends StatelessWidget {
                 Expanded(
                   flex: 3,
                   child: _Panel(
-                    title: 'Jóvenes por líder',
+                    title: 'Distribución de jóvenes',
                     child: _YoungPeopleByLeaderChart(
                       currentUser: currentUser,
                       leader: leader,
@@ -1096,38 +1105,28 @@ class DashboardPage extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
+                const Expanded(
+                  flex: 2,
                   child: _Panel(
-                    title: isAdmin(leader.role)
-                        ? 'Líderes recientes'
-                        : 'Mi perfil',
-                    child: isAdmin(leader.role)
-                        ? const _RecentLeadersPanel()
-                        : _LeaderSummaryPanel(leader: leader),
+                    title: 'Actividades recientes',
+                    child: _RecentActivitiesPanel(),
                   ),
                 ),
-                if (isAdmin(leader.role)) ...[
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    flex: 2,
-                    child: _Panel(
-                      title: 'Actividades recientes',
-                      child: _RecentActivitiesPanel(),
-                    ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 3,
+                  child: _Panel(
+                    title: isAdmin(leader.role)
+                        ? 'Asistencia por actividad'
+                        : 'Asistencia',
+                    child: isAdmin(leader.role)
+                        ? const _AttendanceByActivityPanel()
+                        : const _LeaderAttendanceHint(),
                   ),
-                ],
+                ),
               ],
             ),
           ],
-          const SizedBox(height: 16),
-          _Panel(
-            title: isAdmin(leader.role)
-                ? 'Asistencia por actividad'
-                : 'Asistencia',
-            child: isAdmin(leader.role)
-                ? const _AttendanceByActivityPanel()
-                : const _LeaderAttendanceHint(),
-          ),
         ],
       ),
     );
@@ -1143,60 +1142,66 @@ class _WelcomeHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
+        child: Wrap(
+          spacing: 18,
+          runSpacing: 16,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            const CircleAvatar(
-              radius: 28,
-              backgroundColor: Color(0xFFEDE6FF),
-              child: Icon(Icons.waving_hand_rounded, color: Color(0xFF6A3EC5)),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEDEBFF),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.dashboard_customize_outlined,
+                color: Color(0xFF4F46E5),
+              ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 260, maxWidth: 720),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Hola, ${leader.name}',
                     style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      height: 1.1,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     isAdmin(leader.role)
-                        ? 'Tienes acceso completo al sistema.'
-                        : 'Aquí puedes gestionar tus jóvenes, reportes y asistencias.',
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      Chip(
-                        avatar: const Icon(Icons.verified_user, size: 18),
-                        label: Text(
-                          isAdmin(leader.role) ? 'Administrador' : 'Líder',
-                        ),
-                      ),
-                      Chip(
-                        avatar: const Icon(Icons.place_outlined, size: 18),
-                        label: Text(
-                          leader.zone.isEmpty ? 'Sin zona' : leader.zone,
-                        ),
-                      ),
-                      Chip(
-                        avatar: const Icon(Icons.shield_outlined, size: 18),
-                        label: Text(
-                          leader.status.isEmpty ? 'Sin estado' : leader.status,
-                        ),
-                      ),
-                    ],
+                        ? 'Resumen operativo del grupo juvenil y sus actividades.'
+                        : 'Tus jóvenes, reportes y asistencias en un solo lugar.',
+                    style: const TextStyle(color: Color(0xFF6B7280)),
                   ),
                 ],
               ),
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Chip(
+                  avatar: const Icon(Icons.verified_user, size: 18),
+                  label: Text(isAdmin(leader.role) ? 'Administrador' : 'Líder'),
+                ),
+                Chip(
+                  avatar: const Icon(Icons.place_outlined, size: 18),
+                  label: Text(leader.zone.isEmpty ? 'Sin zona' : leader.zone),
+                ),
+                Chip(
+                  avatar: const Icon(Icons.shield_outlined, size: 18),
+                  label: Text(
+                    leader.status.isEmpty ? 'Sin estado' : leader.status,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -1220,16 +1225,18 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fixedWidth = width > 0 && width != double.infinity;
+
     return SizedBox(
-      width: width == double.infinity ? null : width,
+      width: fixedWidth ? width : null,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          minWidth: width == double.infinity ? 0 : width,
-          maxWidth: width == double.infinity ? double.infinity : width,
+          minWidth: fixedWidth ? width : 0,
+          maxWidth: fixedWidth ? width : double.infinity,
         ),
         child: Card(
           child: Padding(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(20),
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: stream,
               builder: (context, snap) {
@@ -1238,6 +1245,7 @@ class _MetricCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       CircleAvatar(
+                        radius: 22,
                         backgroundColor: const Color(0xFFFFF1F1),
                         child: Icon(icon, color: Colors.red.shade400),
                       ),
@@ -1265,23 +1273,25 @@ class _MetricCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     CircleAvatar(
-                      backgroundColor: const Color(0xFFEDE6FF),
-                      child: Icon(icon, color: const Color(0xFF6A3EC5)),
+                      radius: 22,
+                      backgroundColor: const Color(0xFFEDEBFF),
+                      child: Icon(icon, color: const Color(0xFF4F46E5)),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 18),
                     Text(
                       title,
                       style: const TextStyle(
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       '$count',
                       style: const TextStyle(
-                        fontSize: 30,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        height: 1,
                       ),
                     ),
                   ],
@@ -1485,6 +1495,8 @@ class _LeaderSummaryPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mobile = MediaQuery.of(context).size.width < 900;
+
     return Column(
       children: [
         ListTile(
@@ -1757,10 +1769,10 @@ class _MiniStatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       constraints: const BoxConstraints(minWidth: 130),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       decoration: BoxDecoration(
         color: color.withOpacity(.08),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withOpacity(.18)),
       ),
       child: Column(
@@ -1965,25 +1977,38 @@ class _ActivityInfoPill extends StatelessWidget {
 class _Panel extends StatelessWidget {
   final String title;
   final Widget child;
+  final String? eyebrow;
 
   const _Panel({
     required this.title,
     required this.child,
+    this.eyebrow,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (eyebrow != null) ...[
+              Text(
+                eyebrow!,
+                style: const TextStyle(
+                  color: Color(0xFF6B7280),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
             Text(
               title,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             child,
           ],
         ),
@@ -2000,10 +2025,26 @@ class _EmptyData extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(18),
-      child: Text(
-        message,
-        style: const TextStyle(color: Colors.black54),
+      padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.info_outline, color: Color(0xFF6B7280)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(color: Color(0xFF6B7280)),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2048,6 +2089,7 @@ class LeadersPage extends StatelessWidget {
         message: 'Solo el administrador puede gestionar líderes.',
       );
     }
+    final mobile = MediaQuery.of(context).size.width < 900;
 
     return Column(
       children: [
@@ -2080,6 +2122,10 @@ class LeadersPage extends StatelessWidget {
 
                 if (docs.isEmpty) {
                   return const Center(child: Text('No hay líderes.'));
+                }
+
+                if (!mobile) {
+                  return _LeadersDataTable(docs: docs);
                 }
 
                 return ListView.separated(
@@ -2122,6 +2168,106 @@ class LeadersPage extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _TableText extends StatelessWidget {
+  final String value;
+  final double width;
+  final bool strong;
+
+  const _TableText(this.value, {required this.width, this.strong = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = value.trim().isEmpty ? '-' : value.trim();
+
+    return SizedBox(
+      width: width,
+      child: Text(
+        text,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontWeight: strong ? FontWeight.w800 : null),
+      ),
+    );
+  }
+}
+
+class _LeadersDataTable extends StatelessWidget {
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+
+  const _LeadersDataTable({required this.docs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scrollbar(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(10),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            columnSpacing: 28,
+            columns: const [
+              DataColumn(label: Text('Nombre')),
+              DataColumn(label: Text('Correo')),
+              DataColumn(label: Text('Zona')),
+              DataColumn(label: Text('Rol')),
+              DataColumn(label: Text('Estado')),
+              DataColumn(label: Text('Acciones')),
+            ],
+            rows: docs.map((d) {
+              final data = d.data();
+              return DataRow(
+                cells: [
+                  DataCell(
+                    _TableText(
+                      safeString(data, 'name', 'Sin nombre'),
+                      width: 220,
+                      strong: true,
+                    ),
+                  ),
+                  DataCell(_TableText(safeString(data, 'email'), width: 260)),
+                  DataCell(
+                    _TableText(
+                      safeString(data, 'zone', 'Sin zona'),
+                      width: 140,
+                    ),
+                  ),
+                  DataCell(
+                    Chip(label: Text(safeString(data, 'role', 'leader'))),
+                  ),
+                  DataCell(
+                    Chip(label: Text(safeString(data, 'status', 'activo'))),
+                  ),
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Editar líder',
+                          onPressed: () => _showLeaderDialog(
+                            context,
+                            docId: d.id,
+                            initial: data,
+                          ),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Eliminar líder',
+                          onPressed: () => _deleteDoc('leaders', d.id, context),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2364,6 +2510,8 @@ class CrudCollectionPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mobile = MediaQuery.of(context).size.width < 900;
+
     return Column(
       children: [
         Align(
@@ -2391,6 +2539,15 @@ class CrudCollectionPage extends StatelessWidget {
                 final docs = snap.data!.docs;
                 if (docs.isEmpty) {
                   return Center(child: Text('No hay $title.'));
+                }
+
+                if (!mobile) {
+                  return _CrudDataTable(
+                    docs: docs,
+                    fields: fields,
+                    collection: collection,
+                    currentUser: currentUser,
+                  );
                 }
 
                 return ListView.separated(
@@ -2440,6 +2597,83 @@ class CrudCollectionPage extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CrudDataTable extends StatelessWidget {
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+  final List<CrudField> fields;
+  final String collection;
+  final User currentUser;
+
+  const _CrudDataTable({
+    required this.docs,
+    required this.fields,
+    required this.collection,
+    required this.currentUser,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scrollbar(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(10),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            columnSpacing: 28,
+            columns: [
+              ...fields.map((field) => DataColumn(label: Text(field.label))),
+              const DataColumn(label: Text('Acciones')),
+            ],
+            rows: docs.map((d) {
+              final data = d.data();
+              return DataRow(
+                cells: [
+                  ...fields.map((field) {
+                    final width = field.keyboardType == TextInputType.number
+                        ? 110.0
+                        : (field.maxLines > 1 ? 360.0 : 220.0);
+                    return DataCell(
+                      _TableText(
+                        safeString(data, field.key),
+                        width: width,
+                        strong: field == fields.first,
+                      ),
+                    );
+                  }),
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Editar',
+                          onPressed: () => _showCrudDialog(
+                            context,
+                            collection: collection,
+                            fields: fields,
+                            currentUser: currentUser,
+                            docId: d.id,
+                            initial: data,
+                          ),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Eliminar',
+                          onPressed: () =>
+                              _deleteDoc(collection, d.id, context),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2694,6 +2928,23 @@ class _JovenesPageState extends State<JovenesPage> {
                   return const Center(child: Text('No hay jóvenes.'));
                 }
 
+                if (!mobile) {
+                  return _JovenesDataTable(
+                    docs: docs,
+                    isAdminUser: isAdmin(widget.leader.role),
+                    onHistory: (id, data) => _openHistory(context, id, data),
+                    onExportLeader: (leaderId) =>
+                        _exportJovenesXlsx(leaderId: leaderId),
+                    onEdit: (id, data) => _showJovenDialog(
+                      context,
+                      currentUser: widget.currentUser,
+                      docId: id,
+                      initial: data,
+                    ),
+                    onDelete: (id) => _deleteDoc('jovenes', id, context),
+                  );
+                }
+
                 return ListView.separated(
                   padding: const EdgeInsets.all(14),
                   itemCount: docs.length,
@@ -2827,6 +3078,111 @@ class _JovenesPageState extends State<JovenesPage> {
         ),
       ),
     );
+  }
+}
+
+class _JovenesDataTable extends StatelessWidget {
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+  final bool isAdminUser;
+  final void Function(String id, Map<String, dynamic> data) onHistory;
+  final void Function(String leaderId) onExportLeader;
+  final void Function(String id, Map<String, dynamic> data) onEdit;
+  final void Function(String id) onDelete;
+
+  const _JovenesDataTable({
+    required this.docs,
+    required this.isAdminUser,
+    required this.onHistory,
+    required this.onExportLeader,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scrollbar(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(10),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            columnSpacing: 28,
+            columns: const [
+              DataColumn(label: Text('Nombre')),
+              DataColumn(label: Text('Edad')),
+              DataColumn(label: Text('Teléfono')),
+              DataColumn(label: Text('Formación')),
+              DataColumn(label: Text('Bautismo')),
+              DataColumn(label: Text('Acciones')),
+            ],
+            rows: docs.map((d) {
+              final data = d.data();
+              return DataRow(
+                cells: [
+                  DataCell(
+                    _TableText(
+                      safeString(data, 'nombre', 'Sin nombre'),
+                      width: 260,
+                      strong: true,
+                    ),
+                  ),
+                  DataCell(_TableText(safeString(data, 'edad'), width: 80)),
+                  DataCell(
+                    _TableText(safeString(data, 'telefono'), width: 150),
+                  ),
+                  DataCell(_TableText(_formationSummary(data), width: 300)),
+                  DataCell(
+                    Chip(
+                      label: Text(safeBool(data, 'bautismo') ? 'Sí' : 'No'),
+                    ),
+                  ),
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Historial',
+                          onPressed: () => onHistory(d.id, data),
+                          icon: const Icon(Icons.history),
+                        ),
+                        if (isAdminUser)
+                          IconButton(
+                            tooltip: 'Exportar por líder',
+                            onPressed: () =>
+                                onExportLeader(safeString(data, 'leaderId')),
+                            icon: const Icon(Icons.file_download_outlined),
+                          ),
+                        IconButton(
+                          tooltip: 'Editar',
+                          onPressed: () => onEdit(d.id, data),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Eliminar',
+                          onPressed: () => onDelete(d.id),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formationSummary(Map<String, dynamic> data) {
+    final completed = [
+      if (safeBool(data, 'claseNuevo')) 'Nuevo',
+      if (safeBool(data, 'claseDoctrina')) 'Doctrina',
+      if (safeBool(data, 'claseMaestro')) 'Maestro',
+      if (safeBool(data, 'claseLiderazgo')) 'Liderazgo',
+    ];
+
+    return completed.isEmpty ? 'Sin clases registradas' : completed.join(', ');
   }
 }
 
@@ -3331,16 +3687,16 @@ class _ActividadesPageState extends State<ActividadesPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Actividades',
+                      'Agenda y asistencia',
                       style: TextStyle(
                         fontSize: 24,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Consulta el calendario, revisa el estado de cada actividad y abre la asistencia con el contexto correcto.',
-                      style: TextStyle(color: Colors.black54),
+                      'Prioriza la próxima actividad y abre el pase de asistencia desde la lista.',
+                      style: TextStyle(color: Color(0xFF6B7280)),
                     ),
                     const SizedBox(height: 16),
                     _ActivityHeroCard(
@@ -3355,12 +3711,12 @@ class _ActividadesPageState extends State<ActividadesPage> {
                         _MiniStatCard(
                           label: 'Total',
                           value: '$total',
-                          color: const Color(0xFF6A3EC5),
+                          color: const Color(0xFF4F46E5),
                         ),
                         _MiniStatCard(
                           label: 'Activas',
                           value: '$activas',
-                          color: const Color(0xFF0F9D58),
+                          color: const Color(0xFF059669),
                         ),
                         _MiniStatCard(
                           label: 'Programadas',
@@ -3388,7 +3744,7 @@ class _ActividadesPageState extends State<ActividadesPage> {
                   width: mobile ? double.infinity : 320,
                   child: TextField(
                     decoration: const InputDecoration(
-                      hintText: 'Buscar próxima actividad o descripción...',
+                      hintText: 'Buscar actividad...',
                       prefixIcon: Icon(Icons.search),
                     ),
                     onChanged: (value) =>
@@ -3400,7 +3756,7 @@ class _ActividadesPageState extends State<ActividadesPage> {
                   child: DropdownButtonFormField<String>(
                     value: selectedStatus,
                     decoration: const InputDecoration(
-                      labelText: 'Filtrar lista por estado',
+                      labelText: 'Estado',
                     ),
                     items: const [
                       DropdownMenuItem(value: 'todos', child: Text('Todos')),
@@ -3472,24 +3828,19 @@ class _ActividadesPageState extends State<ActividadesPage> {
                             children: [
                               Icon(
                                 Icons.tune_outlined,
-                                color: Color(0xFF6A3EC5),
+                                color: Color(0xFF4F46E5),
                               ),
                               SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  'Filtros que se aplican al abrir asistencia',
+                                  'Contexto para asistencia',
                                   style: TextStyle(
                                     fontSize: 18,
-                                    fontWeight: FontWeight.w800,
+                                    fontWeight: FontWeight.w900,
                                   ),
                                 ),
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Estos filtros no cambian la lista de actividades. Solo se usan cuando presionas "Abrir asistencia" en una actividad.',
-                            style: TextStyle(color: Colors.black54),
                           ),
                           const SizedBox(height: 14),
                           Wrap(
