@@ -1,0 +1,2401 @@
+diff --git b/.firebase/hosting.YnVpbGRcd2Vi.cache a/.firebase/hosting.YnVpbGRcd2Vi.cache
+index da2d6e6..6ac1c25 100644
+--- b/.firebase/hosting.YnVpbGRcd2Vi.cache
++++ a/.firebase/hosting.YnVpbGRcd2Vi.cache
+@@ -17,17 +17,16 @@ canvaskit/canvaskit.js,1770439180558,777116800268972381a4832500bb0aafd96ab254607
+ canvaskit/chromium/canvaskit.wasm,1770439180854,06f70f0703803c7329be30338b79530564ddc1ab2c3789d608431697a9a30ba2
+ canvaskit/chromium/canvaskit.js.symbols,1770439180792,4a8d181b0622d7a4b4254deb591c43f48dd89623c621dec6f84d0a0b2b8f77a7
+ canvaskit/chromium/canvaskit.js,1770439180777,e0f423bfd63202fb53a4dd5cffe330143bfb9eabf5e4e8198bb605442a49d3e7
+-assets/assets/images/login_background.jpeg,1781985341387,5f9e0460f05f3da31283f97568bc7c616a199e49a00f7cf0326c17362ca89534
+-index.html,1782094585721,9abdd533eba141133c807bc0c7626cffbd2e959cbbd97614b7c003a013be3891
+-version.json,1782094630017,aa4a5fc76ab7d15cccdc358d401c0567e035dbb349e333c6239033d60e6e87bd
+-assets/FontManifest.json,1782094630207,e38b95988f5d060cf9b7ce97cb5ac9236d6f4cc04a11d69567df97b2b4cbc5e5
+-flutter_bootstrap.js,1782094585665,dc00c2d9e496cd462ffb185b2c9d57ea44df844cd4e9b0e759d61287a2a5050e
+-assets/AssetManifest.bin.json,1782094630207,1dcf35d0d40e418ec254d0a06af2b53105e00903a09ee314242518e1e2d67a9b
+-flutter_service_worker.js,1782094632324,481d422b9d806b8183ba03b99e05e032d1c01bcdda22507645fda6beb54731b8
+-assets/AssetManifest.bin,1782094630207,a96afa304aebfbbb2136c6a4c642838055d90029a54772642da648f653ee5fd7
+-assets/packages/cupertino_icons/assets/CupertinoIcons.ttf,1782094631906,d41473de1f7708a0702d7f19327693486512db442f6ab0cf7774e6d6576f9fcb
+-assets/shaders/stretch_effect.frag,1782094630400,586ff23669838dd33070077916f0b971a8800f67093ae8d6eed47e6cea50926f
+-assets/shaders/ink_sparkle.frag,1782094630401,591c7517d5cb43eb91ea451e0d3f9f585cbf8298cf6c46a9144b77cb0775a406
+-assets/fonts/MaterialIcons-Regular.otf,1782094631908,a596133ea16566d69030dfd9813ae1810cb8ccfacbd72270b9171b1923bf969e
+-assets/NOTICES,1782094630209,f674a57d136541db3b81a0982f0ce108c6605294fb8f3f4a7d876e0563c10bad
+-main.dart.js,1782094619319,7d95f36318eae98fceb0c5a4e65173b34cac3dc97dd3d5426439e5560a4373dd
++version.json,1780462921749,aa4a5fc76ab7d15cccdc358d401c0567e035dbb349e333c6239033d60e6e87bd
++index.html,1780462857295,9abdd533eba141133c807bc0c7626cffbd2e959cbbd97614b7c003a013be3891
++flutter_bootstrap.js,1780462857229,e74fe6c356856b177b2c635cec2556a9857eeb71586b198a1f6dce204a4d67b3
++flutter_service_worker.js,1780462925075,fed62b3ecf7fb0b62f166b64ec23a7aeaaa8476239b7fa3ab8e374059426bda4
++assets/FontManifest.json,1780462922333,e38b95988f5d060cf9b7ce97cb5ac9236d6f4cc04a11d69567df97b2b4cbc5e5
++assets/AssetManifest.bin.json,1780462922333,6763aaa55146ec9534c671aaf5a6db93265eaaa8082767ea02eb2ac9b09cbdaa
++assets/AssetManifest.bin,1780462922331,93e425eb6f3c87a588cd708f748fc5bb80fa28bf34c6d814b2bd76daa6a6ed27
++assets/packages/cupertino_icons/assets/CupertinoIcons.ttf,1780462924525,d41473de1f7708a0702d7f19327693486512db442f6ab0cf7774e6d6576f9fcb
++assets/shaders/stretch_effect.frag,1780462922612,586ff23669838dd33070077916f0b971a8800f67093ae8d6eed47e6cea50926f
++assets/shaders/ink_sparkle.frag,1780462922597,591c7517d5cb43eb91ea451e0d3f9f585cbf8298cf6c46a9144b77cb0775a406
++assets/fonts/MaterialIcons-Regular.otf,1780462924541,cdccd015b42e936109728128741fb70a87928e89d110c0e64fc12afb1cb578df
++assets/NOTICES,1780462922334,f674a57d136541db3b81a0982f0ce108c6605294fb8f3f4a7d876e0563c10bad
++main.dart.js,1780462904701,d9ff2fe273a22da3bd34988e5d905a1c3f776ea2a702759bd9396c12b4b44b26
+diff --git b/firestore.rules a/firestore.rules
+index 79abbbe..119138c 100644
+--- b/firestore.rules
++++ a/firestore.rules
+@@ -60,7 +60,8 @@ service cloud.firestore {
+         request.resource.data.name == pendingLeaderInviteData().name &&
+         request.resource.data.zone == pendingLeaderInviteData().zone &&
+         request.resource.data.status == pendingLeaderInviteData().status &&
+-        request.resource.data.role == pendingLeaderInviteData().role;
++        request.resource.data.role == pendingLeaderInviteData().role &&
++        request.resource.data.reports == pendingLeaderInviteData().reports;
+     }
+ 
+     function jovenBelongsToCurrentLeader(jovenId) {
+diff --git b/lib/main.dart a/lib/main.dart
+index e8d3eca..e486880 100644
+--- b/lib/main.dart
++++ a/lib/main.dart
+@@ -219,7 +219,7 @@ class LeaderProfile {
+       name: safeString(data, 'name', 'Usuario'),
+       email: safeString(data, 'email'),
+       role: safeString(data, 'role', 'leader'),
+-      zone: _normalizeLeaderZone(safeString(data, 'zone')),
++      zone: safeString(data, 'zone'),
+       status: safeString(data, 'status', 'activo'),
+     );
+   }
+@@ -339,8 +339,6 @@ class LoginPage extends StatefulWidget {
+ }
+ 
+ class _LoginPageState extends State<LoginPage> {
+-  static const String _backgroundAsset = 'assets/images/login_background.jpeg';
+-
+   final formKey = GlobalKey<FormState>();
+   final emailCtrl = TextEditingController();
+   final passCtrl = TextEditingController();
+@@ -405,94 +403,46 @@ class _LoginPageState extends State<LoginPage> {
+ 
+   @override
+   Widget build(BuildContext context) {
++    final mobile = MediaQuery.of(context).size.width < 900;
+     return Scaffold(
+-      body: LayoutBuilder(
+-        builder: (context, constraints) {
+-          final mobile = constraints.maxWidth < 820;
+-          final horizontalPadding = mobile ? 20.0 : 36.0;
+-          final verticalPadding = mobile ? 20.0 : 30.0;
+-
+-          return Stack(
+-            children: [
+-              Positioned.fill(
+-                child: Image.asset(
+-                  _backgroundAsset,
+-                  fit: BoxFit.cover,
+-                  alignment: mobile ? Alignment.center : Alignment.center,
+-                ),
+-              ),
+-              Positioned.fill(
+-                child: DecoratedBox(
+-                  decoration: BoxDecoration(
+-                    gradient: LinearGradient(
+-                      colors: [
+-                        Colors.black.withOpacity(mobile ? .64 : .58),
+-                        const Color(0xFF2B175F).withOpacity(mobile ? .52 : .42),
+-                        Colors.black.withOpacity(mobile ? .70 : .50),
+-                      ],
+-                      begin: Alignment.topLeft,
+-                      end: Alignment.bottomRight,
+-                    ),
+-                  ),
+-                ),
+-              ),
+-              SafeArea(
+-                child: SingleChildScrollView(
+-                  padding: EdgeInsets.symmetric(
+-                    horizontal: horizontalPadding,
+-                    vertical: verticalPadding,
+-                  ),
+-                  child: Center(
+-                    child: ConstrainedBox(
+-                      constraints: BoxConstraints(
+-                        maxWidth: mobile ? 520 : 1120,
+-                        minHeight: constraints.maxHeight - verticalPadding * 2,
+-                      ),
+-                      child: mobile
+-                          ? Column(
+-                              mainAxisAlignment: MainAxisAlignment.center,
+-                              children: [
+-                                const _LoginHero(compact: true),
+-                                const SizedBox(height: 22),
+-                                _loginCard(context, mobile: true),
+-                              ],
+-                            )
+-                          : Row(
+-                              crossAxisAlignment: CrossAxisAlignment.center,
+-                              children: [
+-                                const Expanded(child: _LoginHero()),
+-                                const SizedBox(width: 44),
+-                                SizedBox(
+-                                  width: 430,
+-                                  child: _loginCard(context),
+-                                ),
+-                              ],
++      body: Container(
++        decoration: const BoxDecoration(
++          gradient: LinearGradient(
++            colors: [Color(0xFFF5F1FF), Color(0xFFF7FAFF)],
++            begin: Alignment.topLeft,
++            end: Alignment.bottomRight,
++          ),
++        ),
++        child: SafeArea(
++          child: Center(
++            child: ConstrainedBox(
++              constraints: const BoxConstraints(maxWidth: 1080),
++              child: Padding(
++                padding: const EdgeInsets.all(20),
++                child: mobile
++                    ? _loginCard(context, mobile: true)
++                    : Row(
++                        children: [
++                          Expanded(
++                            child: Padding(
++                              padding: const EdgeInsets.all(24),
++                              child: _BrandPanel(),
+                             ),
+-                    ),
+-                  ),
+-                ),
++                          ),
++                          const SizedBox(width: 24),
++                          Expanded(child: _loginCard(context)),
++                        ],
++                      ),
+               ),
+-            ],
+-          );
+-        },
++            ),
++          ),
++        ),
+       ),
+     );
+   }
+ 
+   Widget _loginCard(BuildContext context, {bool mobile = false}) {
+-    return DecoratedBox(
+-      decoration: BoxDecoration(
+-        color: Colors.white.withOpacity(.94),
+-        borderRadius: BorderRadius.circular(14),
+-        border: Border.all(color: Colors.white.withOpacity(.65)),
+-        boxShadow: [
+-          BoxShadow(
+-            color: Colors.black.withOpacity(.18),
+-            blurRadius: 28,
+-            offset: const Offset(0, 18),
+-          ),
+-        ],
+-      ),
++    return Card(
+       child: Padding(
+         padding: const EdgeInsets.all(26),
+         child: Form(
+@@ -505,7 +455,7 @@ class _LoginPageState extends State<LoginPage> {
+                 const Center(
+                   child: CircleAvatar(
+                     radius: 30,
+-                    backgroundColor: Color(0xFF4F46E5),
++                    backgroundColor: Color(0xFF6A3EC5),
+                     child: Icon(Icons.groups_rounded,
+                         color: Colors.white, size: 30),
+                   ),
+@@ -513,17 +463,12 @@ class _LoginPageState extends State<LoginPage> {
+                 const SizedBox(height: 16),
+               ],
+               const Text(
+-                'Bienvenido de vuelta',
+-                style: TextStyle(
+-                  color: JVTheme.ink,
+-                  fontSize: 28,
+-                  fontWeight: FontWeight.w900,
+-                ),
++                'Bienvenido',
++                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+               ),
+               const SizedBox(height: 8),
+               const Text(
+                 'Ingresa para gestionar líderes, jóvenes, actividades y asistencias.',
+-                style: TextStyle(color: JVTheme.muted, height: 1.45),
+               ),
+               const SizedBox(height: 24),
+               TextFormField(
+@@ -578,8 +523,7 @@ class _LoginPageState extends State<LoginPage> {
+                   padding: const EdgeInsets.all(12),
+                   decoration: BoxDecoration(
+                     color: Colors.red.withOpacity(.08),
+-                    borderRadius: BorderRadius.circular(10),
+-                    border: Border.all(color: Colors.red.withOpacity(.16)),
++                    borderRadius: BorderRadius.circular(14),
+                   ),
+                   child: Text(
+                     error!,
+@@ -610,115 +554,70 @@ class _LoginPageState extends State<LoginPage> {
+   }
+ }
+ 
+-class _LoginHero extends StatelessWidget {
+-  final bool compact;
+-
+-  const _LoginHero({this.compact = false});
+-
++class _BrandPanel extends StatelessWidget {
+   @override
+   Widget build(BuildContext context) {
+-    final alignment =
+-        compact ? CrossAxisAlignment.center : CrossAxisAlignment.start;
+-    final textAlign = compact ? TextAlign.center : TextAlign.start;
+-
+-    return Column(
+-      mainAxisSize: MainAxisSize.min,
+-      crossAxisAlignment: alignment,
+-      children: [
+-        Container(
+-          width: compact ? 58 : 68,
+-          height: compact ? 58 : 68,
+-          decoration: BoxDecoration(
+-            color: Colors.white.withOpacity(.18),
+-            borderRadius: BorderRadius.circular(14),
+-            border: Border.all(color: Colors.white.withOpacity(.32)),
+-          ),
+-          child: const Icon(
+-            Icons.groups_rounded,
+-            color: Colors.white,
+-            size: 34,
+-          ),
+-        ),
+-        const SizedBox(height: 22),
+-        Text(
+-          'JV Líderes',
+-          textAlign: textAlign,
+-          style: TextStyle(
+-            color: Colors.white,
+-            fontSize: compact ? 34 : 52,
+-            fontWeight: FontWeight.w900,
+-            height: 1.02,
+-            shadows: [
+-              Shadow(
+-                color: Colors.black.withOpacity(.32),
+-                blurRadius: 18,
+-                offset: const Offset(0, 8),
+-              ),
+-            ],
+-          ),
+-        ),
+-        const SizedBox(height: 12),
+-        ConstrainedBox(
+-          constraints: BoxConstraints(maxWidth: compact ? 420 : 580),
+-          child: Text(
+-            'Una plataforma para cuidar mejor cada registro, actividad y asistencia del grupo juvenil.',
+-            textAlign: textAlign,
+-            style: TextStyle(
+-              color: Colors.white.withOpacity(.88),
+-              fontSize: compact ? 16 : 19,
+-              height: 1.45,
++    return Card(
++      child: Padding(
++        padding: const EdgeInsets.all(30),
++        child: Column(
++          crossAxisAlignment: CrossAxisAlignment.start,
++          children: const [
++            CircleAvatar(
++              radius: 34,
++              backgroundColor: Color(0xFF6A3EC5),
++              child: Icon(Icons.groups_rounded, color: Colors.white, size: 34),
+             ),
+-          ),
++            SizedBox(height: 24),
++            Text(
++              'JV Líderes',
++              style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900),
++            ),
++            SizedBox(height: 12),
++            Text(
++              'Una plataforma moderna para administrar líderes, jóvenes, actividades y asistencias desde cualquier dispositivo.',
++              style: TextStyle(fontSize: 17, height: 1.5),
++            ),
++            SizedBox(height: 26),
++            _FeatureRow(
++              icon: Icons.phone_iphone,
++              text: 'Experiencia optimizada para móvil',
++            ),
++            SizedBox(height: 12),
++            _FeatureRow(
++              icon: Icons.security,
++              text: 'Permisos por rol: admin y líder',
++            ),
++            SizedBox(height: 12),
++            _FeatureRow(
++              icon: Icons.analytics_outlined,
++              text: 'Dashboard y seguimiento en tiempo real',
++            ),
++          ],
+         ),
+-        if (!compact) ...[
+-          const SizedBox(height: 28),
+-          const Wrap(
+-            spacing: 10,
+-            runSpacing: 10,
+-            children: [
+-              _FeaturePill(icon: Icons.phone_iphone, text: 'Móvil y PC'),
+-              _FeaturePill(icon: Icons.security, text: 'Roles seguros'),
+-              _FeaturePill(
+-                icon: Icons.analytics_outlined,
+-                text: 'Seguimiento en vivo',
+-              ),
+-            ],
+-          ),
+-        ],
+-      ],
++      ),
+     );
+   }
+ }
+ 
+-class _FeaturePill extends StatelessWidget {
++class _FeatureRow extends StatelessWidget {
+   final IconData icon;
+   final String text;
+ 
+-  const _FeaturePill({required this.icon, required this.text});
++  const _FeatureRow({required this.icon, required this.text});
+ 
+   @override
+   Widget build(BuildContext context) {
+-    return Container(
+-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+-      decoration: BoxDecoration(
+-        color: Colors.white.withOpacity(.16),
+-        borderRadius: BorderRadius.circular(10),
+-        border: Border.all(color: Colors.white.withOpacity(.24)),
+-      ),
+-      child: Row(
+-        mainAxisSize: MainAxisSize.min,
+-        children: [
+-          Icon(icon, color: Colors.white, size: 18),
+-          const SizedBox(width: 8),
+-          Text(
+-            text,
+-            style: const TextStyle(
+-              color: Colors.white,
+-              fontWeight: FontWeight.w700,
+-            ),
+-          ),
+-        ],
+-      ),
++    return Row(
++      children: [
++        CircleAvatar(
++          radius: 18,
++          backgroundColor: const Color(0xFFEDE6FF),
++          child: Icon(icon, size: 18, color: Color(0xFF6A3EC5)),
++        ),
++        const SizedBox(width: 12),
++        Expanded(child: Text(text)),
++      ],
+     );
+   }
+ }
+@@ -740,12 +639,6 @@ class HomeShell extends StatefulWidget {
+ class _HomeShellState extends State<HomeShell> {
+   int selectedIndex = 0;
+ 
+-  void _selectSection(String title) {
+-    final index = _items.indexWhere((item) => item.title == title);
+-    if (index == -1) return;
+-    setState(() => selectedIndex = index);
+-  }
+-
+   List<_MenuItem> get _items {
+     final all = [
+       const _MenuItem('Dashboard', Icons.dashboard_outlined, Icons.dashboard),
+@@ -773,11 +666,7 @@ class _HomeShellState extends State<HomeShell> {
+ 
+   List<Widget> _pages() {
+     final all = [
+-      DashboardPage(
+-        currentUser: widget.currentUser,
+-        leader: widget.leader,
+-        onSelectSection: _selectSection,
+-      ),
++      DashboardPage(currentUser: widget.currentUser, leader: widget.leader),
+       LeadersPage(currentUser: widget.currentUser, leader: widget.leader),
+       RegistrosPage(currentUser: widget.currentUser, leader: widget.leader),
+       ReportesPage(currentUser: widget.currentUser, leader: widget.leader),
+@@ -1074,13 +963,11 @@ class _MenuItem {
+ class DashboardPage extends StatelessWidget {
+   final User currentUser;
+   final LeaderProfile leader;
+-  final ValueChanged<String> onSelectSection;
+ 
+   const DashboardPage({
+     super.key,
+     required this.currentUser,
+     required this.leader,
+-    required this.onSelectSection,
+   });
+ 
+   Query<Map<String, dynamic>> _queryFor(String collection) {
+@@ -1137,11 +1024,6 @@ class DashboardPage extends StatelessWidget {
+         children: [
+           _WelcomeHeader(leader: leader),
+           const SizedBox(height: 16),
+-          _QuickActionsPanel(
+-            isAdminUser: isAdmin(leader.role),
+-            onSelectSection: onSelectSection,
+-          ),
+-          const SizedBox(height: 16),
+           if (mobile)
+             Column(
+               children: metrics
+@@ -1169,13 +1051,11 @@ class DashboardPage extends StatelessWidget {
+           const SizedBox(height: 16),
+           if (mobile) ...[
+             _Panel(
+-              title: 'Asistencia por fecha',
+-              child: isAdmin(leader.role)
+-                  ? _AttendanceByDateChartPanel(
+-                      currentUser: currentUser,
+-                      leader: leader,
+-                    )
+-                  : const _LeaderAttendanceHint(),
++              title: 'Distribución de jóvenes',
++              child: _YoungPeopleByLeaderChart(
++                currentUser: currentUser,
++                leader: leader,
++              ),
+             ),
+             const SizedBox(height: 16),
+             const _Panel(
+@@ -1205,13 +1085,11 @@ class DashboardPage extends StatelessWidget {
+                 Expanded(
+                   flex: 3,
+                   child: _Panel(
+-                    title: 'Asistencia por fecha',
+-                    child: isAdmin(leader.role)
+-                        ? _AttendanceByDateChartPanel(
+-                            currentUser: currentUser,
+-                            leader: leader,
+-                          )
+-                        : const _LeaderAttendanceHint(),
++                    title: 'Distribución de jóvenes',
++                    child: _YoungPeopleByLeaderChart(
++                      currentUser: currentUser,
++                      leader: leader,
++                    ),
+                   ),
+                 ),
+                 const SizedBox(width: 16),
+@@ -1332,173 +1210,6 @@ class _WelcomeHeader extends StatelessWidget {
+   }
+ }
+ 
+-class _QuickActionsPanel extends StatelessWidget {
+-  final bool isAdminUser;
+-  final ValueChanged<String> onSelectSection;
+-
+-  const _QuickActionsPanel({
+-    required this.isAdminUser,
+-    required this.onSelectSection,
+-  });
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    final actions = [
+-      _QuickAction(
+-        title: 'Jóvenes',
+-        subtitle: 'Registrar y consultar perfiles',
+-        icon: Icons.groups_outlined,
+-        section: 'Jóvenes',
+-      ),
+-      _QuickAction(
+-        title: 'Actividades',
+-        subtitle: 'Agenda y pase de asistencia',
+-        icon: Icons.event_note_outlined,
+-        section: 'Actividades',
+-      ),
+-      _QuickAction(
+-        title: 'Reportes',
+-        subtitle: 'Revisar seguimiento semanal',
+-        icon: Icons.bar_chart_outlined,
+-        section: 'Reportes',
+-      ),
+-      if (isAdminUser)
+-        _QuickAction(
+-          title: 'Líderes',
+-          subtitle: 'Administrar equipo y zonas',
+-          icon: Icons.manage_accounts_outlined,
+-          section: 'Líderes',
+-        ),
+-    ];
+-
+-    return Card(
+-      child: Padding(
+-        padding: const EdgeInsets.all(18),
+-        child: Column(
+-          crossAxisAlignment: CrossAxisAlignment.start,
+-          children: [
+-            const Text(
+-              'Accesos rápidos',
+-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+-            ),
+-            const SizedBox(height: 14),
+-            LayoutBuilder(
+-              builder: (context, constraints) {
+-                final compact = constraints.maxWidth < 760;
+-                if (compact) {
+-                  return Column(
+-                    children: actions
+-                        .map(
+-                          (action) => Padding(
+-                            padding: const EdgeInsets.only(bottom: 10),
+-                            child: _QuickActionButton(
+-                              action: action,
+-                              onTap: () => onSelectSection(action.section),
+-                            ),
+-                          ),
+-                        )
+-                        .toList(),
+-                  );
+-                }
+-
+-                return Row(
+-                  children: actions.asMap().entries.map((entry) {
+-                    return Expanded(
+-                      child: Padding(
+-                        padding: EdgeInsets.only(
+-                          right: entry.key == actions.length - 1 ? 0 : 12,
+-                        ),
+-                        child: _QuickActionButton(
+-                          action: entry.value,
+-                          onTap: () => onSelectSection(entry.value.section),
+-                        ),
+-                      ),
+-                    );
+-                  }).toList(),
+-                );
+-              },
+-            ),
+-          ],
+-        ),
+-      ),
+-    );
+-  }
+-}
+-
+-class _QuickAction {
+-  final String title;
+-  final String subtitle;
+-  final IconData icon;
+-  final String section;
+-
+-  const _QuickAction({
+-    required this.title,
+-    required this.subtitle,
+-    required this.icon,
+-    required this.section,
+-  });
+-}
+-
+-class _QuickActionButton extends StatelessWidget {
+-  final _QuickAction action;
+-  final VoidCallback onTap;
+-
+-  const _QuickActionButton({
+-    required this.action,
+-    required this.onTap,
+-  });
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return OutlinedButton(
+-      onPressed: onTap,
+-      style: OutlinedButton.styleFrom(
+-        alignment: Alignment.centerLeft,
+-        padding: const EdgeInsets.all(14),
+-      ),
+-      child: Row(
+-        children: [
+-          Container(
+-            width: 42,
+-            height: 42,
+-            decoration: BoxDecoration(
+-              color: const Color(0xFFEDEBFF),
+-              borderRadius: BorderRadius.circular(12),
+-            ),
+-            child: Icon(action.icon, color: const Color(0xFF4F46E5)),
+-          ),
+-          const SizedBox(width: 12),
+-          Expanded(
+-            child: Column(
+-              crossAxisAlignment: CrossAxisAlignment.start,
+-              children: [
+-                Text(
+-                  action.title,
+-                  style: const TextStyle(
+-                    color: Color(0xFF111827),
+-                    fontWeight: FontWeight.w900,
+-                  ),
+-                ),
+-                const SizedBox(height: 3),
+-                Text(
+-                  action.subtitle,
+-                  maxLines: 1,
+-                  overflow: TextOverflow.ellipsis,
+-                  style: const TextStyle(
+-                    color: Color(0xFF6B7280),
+-                    fontSize: 12,
+-                  ),
+-                ),
+-              ],
+-            ),
+-          ),
+-          const Icon(Icons.chevron_right, size: 20),
+-        ],
+-      ),
+-    );
+-  }
+-}
+-
+ class _MetricCard extends StatelessWidget {
+   final double width;
+   final String title;
+@@ -1594,143 +1305,135 @@ class _MetricCard extends StatelessWidget {
+   }
+ }
+ 
+-class _AttendanceByDateChartPanel extends StatefulWidget {
++class _YoungPeopleByLeaderChart extends StatelessWidget {
+   final User currentUser;
+   final LeaderProfile leader;
+ 
+-  const _AttendanceByDateChartPanel({
++  const _YoungPeopleByLeaderChart({
+     required this.currentUser,
+     required this.leader,
+   });
+ 
+-  @override
+-  State<_AttendanceByDateChartPanel> createState() =>
+-      _AttendanceByDateChartPanelState();
+-}
+-
+-class _AttendanceByDateChartPanelState
+-    extends State<_AttendanceByDateChartPanel> {
+-  String selectedActivity = 'Todas';
+-
+   @override
+   Widget build(BuildContext context) {
++    final Stream<QuerySnapshot<Map<String, dynamic>>> stream =
++        isAdmin(leader.role)
++            ? db.collection('jovenes').snapshots()
++            : db
++                .collection('jovenes')
++                .where('leaderId', isEqualTo: currentUser.uid)
++                .snapshots();
++
+     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+-      stream: db.collection('actividades').snapshots(),
+-      builder: (context, activitySnap) {
+-        if (activitySnap.hasError) {
+-          return const _EmptyData('No se pudieron cargar las actividades.');
++      stream: stream,
++      builder: (context, snap) {
++        if (snap.hasError) {
++          return const _EmptyData('No se pudieron cargar los jóvenes.');
+         }
+-        if (!activitySnap.hasData) {
++        if (!snap.hasData) {
+           return const Center(child: CircularProgressIndicator());
+         }
++        final docs = snap.data!.docs;
++        if (docs.isEmpty) {
++          return const _EmptyData('No hay jóvenes registrados.');
++        }
+ 
+-        final activities = activitySnap.data!.docs;
+-        if (activities.isEmpty) {
+-          return const _EmptyData('No hay actividades registradas.');
++        final Map<String, int> counts = {};
++        for (final d in docs) {
++          final leaderId = safeString(d.data(), 'leaderId', currentUser.uid);
++          counts[leaderId] = (counts[leaderId] ?? 0) + 1;
+         }
+ 
+-        return FutureBuilder<_AttendanceByDateData>(
+-          future: _loadAttendanceByDateData(
+-            activities: activities,
+-            currentUser: widget.currentUser,
+-            leader: widget.leader,
+-          ),
+-          builder: (context, chartSnap) {
+-            if (chartSnap.hasError) {
+-              return const _EmptyData('No se pudo cargar la asistencia.');
+-            }
+-            if (!chartSnap.hasData) {
+-              return const Center(child: CircularProgressIndicator());
+-            }
++        if (!isAdmin(leader.role)) {
++          counts
++            ..clear()
++            ..[currentUser.uid] = docs.length;
++        }
+ 
+-            final data = chartSnap.data!;
+-            if (data.activityNames.isEmpty) {
+-              return const _EmptyData('Aún no hay asistencias registradas.');
+-            }
++        if (!isAdmin(leader.role)) {
++          final total = counts[currentUser.uid] ?? docs.length;
++          return Column(
++            children: [
++              Padding(
++                padding: const EdgeInsets.symmetric(vertical: 8),
++                child: Row(
++                  children: [
++                    const SizedBox(
++                      width: 120,
++                      child: Text(
++                        'Tus jóvenes',
++                        overflow: TextOverflow.ellipsis,
++                        style: TextStyle(fontWeight: FontWeight.w700),
++                      ),
++                    ),
++                    const SizedBox(width: 10),
++                    Expanded(
++                      child: LinearProgressIndicator(
++                        value: total == 0 ? 0 : 1,
++                        minHeight: 12,
++                        borderRadius: BorderRadius.circular(99),
++                      ),
++                    ),
++                    const SizedBox(width: 10),
++                    Text(
++                      '$total',
++                      style: const TextStyle(fontWeight: FontWeight.w800),
++                    ),
++                  ],
++                ),
++              ),
++            ],
++          );
++        }
+ 
+-            if (selectedActivity != 'Todas' &&
+-                !data.activityNames.contains(selectedActivity)) {
+-              selectedActivity = 'Todas';
++        return FutureBuilder<Map<String, String>>(
++          future: fetchLeaderNames(),
++          builder: (context, namesSnap) {
++            if (namesSnap.hasError) {
++              return const _EmptyData('No se pudieron cargar los líderes.');
+             }
+-
+-            final groups = data.groupsFor(selectedActivity);
+-            final mobile = MediaQuery.of(context).size.width < 700;
++            if (!namesSnap.hasData) {
++              return const Center(child: CircularProgressIndicator());
++            }
++            final names = namesSnap.data!;
++            final entries = counts.entries.toList()
++              ..sort((a, b) => b.value.compareTo(a.value));
++            final maxValue = entries.first.value == 0 ? 1 : entries.first.value;
+ 
+             return Column(
+-              crossAxisAlignment: CrossAxisAlignment.start,
+-              children: [
+-                SizedBox(
+-                  width: mobile ? double.infinity : 300,
+-                  child: DropdownButtonFormField<String>(
+-                    value: selectedActivity,
+-                    decoration: const InputDecoration(
+-                      labelText: 'Actividad',
+-                      prefixIcon: Icon(Icons.event_available_outlined),
+-                    ),
+-                    items: [
+-                      const DropdownMenuItem(
+-                        value: 'Todas',
+-                        child: Text('Todas'),
+-                      ),
+-                      ...data.activityNames.map(
+-                        (name) => DropdownMenuItem(
+-                          value: name,
+-                          child: Text(name),
+-                        ),
+-                      ),
+-                    ],
+-                    onChanged: (value) {
+-                      if (value == null) return;
+-                      setState(() => selectedActivity = value);
+-                    },
+-                  ),
+-                ),
+-                const SizedBox(height: 18),
+-                if (groups.isEmpty)
+-                  const _EmptyData(
+-                    'No hay asistencias para la actividad seleccionada.',
+-                  )
+-                else
+-                  Column(
+-                    crossAxisAlignment: CrossAxisAlignment.start,
++              children: entries.map((e) {
++                final label = isAdmin(leader.role)
++                    ? (names[e.key] ?? 'Sin líder')
++                    : 'Tus jóvenes';
++                return Padding(
++                  padding: const EdgeInsets.symmetric(vertical: 8),
++                  child: Row(
+                     children: [
+                       SizedBox(
+-                        height: mobile ? 280 : 320,
+-                        width: double.infinity,
+-                        child: LayoutBuilder(
+-                          builder: (context, constraints) {
+-                            final preferredWidth = groups.length * 92.0;
+-                            final chartWidth =
+-                                preferredWidth < constraints.maxWidth
+-                                    ? constraints.maxWidth
+-                                    : preferredWidth;
+-                            return Scrollbar(
+-                              child: SingleChildScrollView(
+-                                scrollDirection: Axis.horizontal,
+-                                child: SizedBox(
+-                                  width: chartWidth,
+-                                  height: double.infinity,
+-                                  child: _GroupedAttendanceChart(
+-                                    groups: groups,
+-                                    activityNames: selectedActivity == 'Todas'
+-                                        ? data.activityNames
+-                                        : [selectedActivity],
+-                                  ),
+-                                ),
+-                              ),
+-                            );
+-                          },
++                        width: 120,
++                        child: Text(
++                          label,
++                          overflow: TextOverflow.ellipsis,
++                          style: const TextStyle(fontWeight: FontWeight.w700),
++                        ),
++                      ),
++                      const SizedBox(width: 10),
++                      Expanded(
++                        child: LinearProgressIndicator(
++                          value: e.value / maxValue,
++                          minHeight: 12,
++                          borderRadius: BorderRadius.circular(99),
+                         ),
+                       ),
+-                      const SizedBox(height: 12),
+-                      _AttendanceChartLegend(
+-                        activityNames: selectedActivity == 'Todas'
+-                            ? data.activityNames
+-                            : [selectedActivity],
++                      const SizedBox(width: 10),
++                      Text(
++                        '${e.value}',
++                        style: const TextStyle(fontWeight: FontWeight.w800),
+                       ),
+                     ],
+                   ),
+-              ],
++                );
++              }).toList(),
+             );
+           },
+         );
+@@ -1739,380 +1442,6 @@ class _AttendanceByDateChartPanelState
+   }
+ }
+ 
+-class _AttendanceByDateData {
+-  final List<String> activityNames;
+-  final List<_AttendanceDateGroup> groups;
+-
+-  const _AttendanceByDateData({
+-    required this.activityNames,
+-    required this.groups,
+-  });
+-
+-  List<_AttendanceDateGroup> groupsFor(String selectedActivity) {
+-    if (selectedActivity == 'Todas') return groups;
+-    final filtered = <_AttendanceDateGroup>[];
+-    for (final group in groups) {
+-      final count = group.countsByActivity[selectedActivity] ?? 0;
+-      if (count == 0) continue;
+-      filtered.add(
+-        _AttendanceDateGroup(
+-          date: group.date,
+-          label: group.label,
+-          countsByActivity: {selectedActivity: count},
+-        ),
+-      );
+-    }
+-    return filtered;
+-  }
+-}
+-
+-class _AttendanceDateGroup {
+-  final DateTime date;
+-  final String label;
+-  final Map<String, int> countsByActivity;
+-
+-  const _AttendanceDateGroup({
+-    required this.date,
+-    required this.label,
+-    required this.countsByActivity,
+-  });
+-}
+-
+-Future<_AttendanceByDateData> _loadAttendanceByDateData({
+-  required List<QueryDocumentSnapshot<Map<String, dynamic>>> activities,
+-  required User currentUser,
+-  required LeaderProfile leader,
+-}) async {
+-  final activityById = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+-
+-  for (final activity in activities) {
+-    final name = safeString(activity.data(), 'nombre', 'Actividad').trim();
+-    if (name.isEmpty) continue;
+-    activityById[activity.id] = activity;
+-  }
+-
+-  if (activityById.isEmpty) {
+-    return const _AttendanceByDateData(activityNames: [], groups: []);
+-  }
+-
+-  final attendanceSnap = await db.collection('asistencias').get();
+-  final allowedJovenIds = await _loadAllowedDashboardJovenIds(
+-    currentUser: currentUser,
+-    leader: leader,
+-  );
+-  final grouped = <String, _MutableAttendanceDateGroup>{};
+-  final hasJovenScope = allowedJovenIds != null;
+-
+-  for (final attendance in attendanceSnap.docs) {
+-    final data = attendance.data();
+-    if (data['attended'] != true) continue;
+-
+-    if (hasJovenScope &&
+-        !allowedJovenIds.contains(safeString(data, 'jovenId'))) {
+-      continue;
+-    }
+-
+-    final activityId = safeString(data, 'activityId');
+-    final activity = activityById[activityId];
+-    if (activity == null) continue;
+-
+-    final activityData = activity.data();
+-    final date = _extractDate(activityData['fecha']);
+-    if (date == null) continue;
+-
+-    final normalizedDate = DateTime(date.year, date.month, date.day);
+-    final key = DateFormat('yyyy-MM-dd').format(normalizedDate);
+-    final name = safeString(activityData, 'nombre', 'Actividad').trim();
+-    if (name.isEmpty) continue;
+-
+-    final bucket = grouped.putIfAbsent(
+-      key,
+-      () => _MutableAttendanceDateGroup(
+-        date: normalizedDate,
+-        label: DateFormat('dd/MM').format(normalizedDate),
+-      ),
+-    );
+-    bucket.countsByActivity[name] = (bucket.countsByActivity[name] ?? 0) + 1;
+-  }
+-
+-  final groups = grouped.values
+-      .map(
+-        (group) => _AttendanceDateGroup(
+-          date: group.date,
+-          label: group.label,
+-          countsByActivity: Map.unmodifiable(group.countsByActivity),
+-        ),
+-      )
+-      .toList()
+-    ..sort((a, b) => a.date.compareTo(b.date));
+-  final attendedActivityNames = groups
+-      .expand((group) => group.countsByActivity.keys)
+-      .toSet()
+-      .toList()
+-    ..sort();
+-
+-  return _AttendanceByDateData(
+-    activityNames: attendedActivityNames,
+-    groups: groups,
+-  );
+-}
+-
+-Future<Set<String>?> _loadAllowedDashboardJovenIds({
+-  required User currentUser,
+-  required LeaderProfile leader,
+-}) async {
+-  if (isAdmin(leader.role)) return null;
+-
+-  final jovenesSnap = await db
+-      .collection('jovenes')
+-      .where('leaderId', isEqualTo: currentUser.uid)
+-      .get();
+-  return jovenesSnap.docs.map((doc) => doc.id).toSet();
+-}
+-
+-class _MutableAttendanceDateGroup {
+-  final DateTime date;
+-  final String label;
+-  final Map<String, int> countsByActivity = {};
+-
+-  _MutableAttendanceDateGroup({
+-    required this.date,
+-    required this.label,
+-  });
+-}
+-
+-class _GroupedAttendanceChart extends StatelessWidget {
+-  final List<_AttendanceDateGroup> groups;
+-  final List<String> activityNames;
+-
+-  const _GroupedAttendanceChart({
+-    required this.groups,
+-    required this.activityNames,
+-  });
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return CustomPaint(
+-      painter: _GroupedAttendanceChartPainter(
+-        groups: groups,
+-        activityNames: activityNames,
+-        textDirection: Directionality.of(context),
+-      ),
+-    );
+-  }
+-}
+-
+-class _GroupedAttendanceChartPainter extends CustomPainter {
+-  final List<_AttendanceDateGroup> groups;
+-  final List<String> activityNames;
+-  final TextDirection textDirection;
+-
+-  const _GroupedAttendanceChartPainter({
+-    required this.groups,
+-    required this.activityNames,
+-    required this.textDirection,
+-  });
+-
+-  static const _palette = [
+-    Color(0xFF4F46E5),
+-    Color(0xFF059669),
+-    Color(0xFFD97706),
+-    Color(0xFF2563EB),
+-    Color(0xFFDB2777),
+-    Color(0xFF7C3AED),
+-  ];
+-
+-  @override
+-  void paint(Canvas canvas, Size size) {
+-    if (groups.isEmpty || activityNames.isEmpty) return;
+-
+-    final axisPaint = Paint()
+-      ..color = const Color(0xFFE5E7EB)
+-      ..strokeWidth = 1;
+-    final gridPaint = Paint()
+-      ..color = const Color(0xFFF1F5F9)
+-      ..strokeWidth = 1;
+-
+-    const left = 42.0;
+-    const right = 14.0;
+-    const top = 18.0;
+-    const bottom = 48.0;
+-    final chartWidth = size.width - left - right;
+-    final chartHeight = size.height - top - bottom;
+-    if (chartWidth <= 0 || chartHeight <= 0) return;
+-
+-    final visibleActivities = activityNames.take(6).toList();
+-    if (visibleActivities.isEmpty) return;
+-
+-    final maxValue = groups
+-        .expand((group) => visibleActivities.map(
+-              (name) => group.countsByActivity[name] ?? 0,
+-            ))
+-        .fold<int>(0, (max, value) => value > max ? value : max);
+-    final effectiveMax = maxValue <= 0 ? 1 : maxValue;
+-    final step = (effectiveMax / 4).ceil().clamp(1, effectiveMax).toInt();
+-    final yMax =
+-        ((effectiveMax / step).ceil() * step).clamp(1, 999999).toInt();
+-
+-    for (var value = 0; value <= yMax; value += step) {
+-      final y = top + chartHeight - (value / yMax) * chartHeight;
+-      canvas.drawLine(Offset(left, y), Offset(size.width - right, y), gridPaint);
+-      _drawText(
+-        canvas,
+-        '$value',
+-        Offset(0, y - 8),
+-        width: left - 8,
+-        style: const TextStyle(
+-          color: Color(0xFF6B7280),
+-          fontSize: 11,
+-          fontWeight: FontWeight.w600,
+-        ),
+-        align: TextAlign.right,
+-      );
+-    }
+-
+-    canvas.drawLine(
+-      Offset(left, top),
+-      Offset(left, top + chartHeight),
+-      axisPaint,
+-    );
+-    canvas.drawLine(
+-      Offset(left, top + chartHeight),
+-      Offset(size.width - right, top + chartHeight),
+-      axisPaint,
+-    );
+-
+-    final groupWidth = chartWidth / groups.length;
+-    final barGap = visibleActivities.length == 1 ? 0.0 : 3.0;
+-    final barsWidth = groupWidth * .68;
+-    final barWidth =
+-        ((barsWidth - barGap * (visibleActivities.length - 1)) /
+-                visibleActivities.length)
+-            .clamp(4.0, 24.0)
+-            .toDouble();
+-
+-    for (var groupIndex = 0; groupIndex < groups.length; groupIndex++) {
+-      final group = groups[groupIndex];
+-      final groupStart = left + groupIndex * groupWidth;
+-      final barsStart =
+-          groupStart + (groupWidth - (barWidth * visibleActivities.length) -
+-                  barGap * (visibleActivities.length - 1)) /
+-              2;
+-
+-      for (var activityIndex = 0;
+-          activityIndex < visibleActivities.length;
+-          activityIndex++) {
+-        final activity = visibleActivities[activityIndex];
+-        final value = group.countsByActivity[activity] ?? 0;
+-        if (value == 0) continue;
+-
+-        final barHeight = (value / yMax) * chartHeight;
+-        final x = barsStart + activityIndex * (barWidth + barGap);
+-        final y = top + chartHeight - barHeight;
+-        final rect = RRect.fromRectAndRadius(
+-          Rect.fromLTWH(x, y, barWidth, barHeight),
+-          const Radius.circular(5),
+-        );
+-        final paint = Paint()
+-          ..color = _palette[activityIndex % _palette.length];
+-        canvas.drawRRect(rect, paint);
+-
+-        if (barHeight > 16 || value < 100) {
+-          _drawText(
+-            canvas,
+-            '$value',
+-            Offset(x - 8, y - 16),
+-            width: barWidth + 16,
+-            style: const TextStyle(
+-              color: Color(0xFF111827),
+-              fontSize: 10,
+-              fontWeight: FontWeight.w800,
+-            ),
+-            align: TextAlign.center,
+-          );
+-        }
+-      }
+-
+-      _drawText(
+-        canvas,
+-        group.label,
+-        Offset(groupStart, top + chartHeight + 12),
+-        width: groupWidth,
+-        style: const TextStyle(
+-          color: Color(0xFF6B7280),
+-          fontSize: 11,
+-          fontWeight: FontWeight.w700,
+-        ),
+-        align: TextAlign.center,
+-      );
+-    }
+-  }
+-
+-  void _drawText(
+-    Canvas canvas,
+-    String text,
+-    Offset offset, {
+-    required double width,
+-    required TextStyle style,
+-    TextAlign align = TextAlign.left,
+-  }) {
+-    final painter = TextPainter(
+-      text: TextSpan(text: text, style: style),
+-      textAlign: align,
+-      textDirection: textDirection,
+-      maxLines: 1,
+-      ellipsis: '...',
+-    )..layout(maxWidth: width);
+-    painter.paint(canvas, offset);
+-  }
+-
+-  @override
+-  bool shouldRepaint(covariant _GroupedAttendanceChartPainter oldDelegate) {
+-    return oldDelegate.groups != groups ||
+-        oldDelegate.activityNames != activityNames ||
+-        oldDelegate.textDirection != textDirection;
+-  }
+-}
+-
+-class _AttendanceChartLegend extends StatelessWidget {
+-  final List<String> activityNames;
+-
+-  const _AttendanceChartLegend({required this.activityNames});
+-
+-  static const _palette = _GroupedAttendanceChartPainter._palette;
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return Wrap(
+-      spacing: 12,
+-      runSpacing: 8,
+-      children: activityNames.take(6).toList().asMap().entries.map((entry) {
+-        return Row(
+-          mainAxisSize: MainAxisSize.min,
+-          children: [
+-            Container(
+-              width: 10,
+-              height: 10,
+-              decoration: BoxDecoration(
+-                color: _palette[entry.key % _palette.length],
+-                borderRadius: BorderRadius.circular(3),
+-              ),
+-            ),
+-            const SizedBox(width: 6),
+-            Text(
+-              entry.value,
+-              style: const TextStyle(
+-                color: Color(0xFF4B5563),
+-                fontWeight: FontWeight.w700,
+-              ),
+-            ),
+-          ],
+-        );
+-      }).toList(),
+-    );
+-  }
+-}
+-
+ class _RecentLeadersPanel extends StatelessWidget {
+   const _RecentLeadersPanel();
+ 
+@@ -2373,6 +1702,14 @@ class _LeaderAttendanceHint extends StatelessWidget {
+   }
+ }
+ 
++Future<Map<String, String>> fetchLeaderNames() async {
++  final snapshot = await db.collection('leaders').get();
++  return {
++    for (final d in snapshot.docs)
++      d.id: safeString(d.data(), 'name', 'Sin nombre'),
++  };
++}
++
+ class _ActivityAttendanceSummary {
+   final String activityName;
+   final int attended;
+@@ -2802,33 +2139,23 @@ class LeadersPage extends StatelessWidget {
+                       leading: const CircleAvatar(child: Icon(Icons.person)),
+                       title: Text(safeString(data, 'name', 'Sin nombre')),
+                       subtitle: Text(
+-                        '${safeString(data, "email")} · Zona: ${_displayLeaderZone(safeString(data, "zone"))}',
++                        '${safeString(data, "email")} · Zona: ${safeString(data, "zone", "Sin zona")}',
+                       ),
+                       trailing: Wrap(
+                         spacing: 8,
+                         children: [
+-                          Chip(
+-                            label: Text(safeString(data, 'role', 'leader')),
+-                          ),
++                          Chip(label: Text(safeString(data, 'role', 'leader'))),
+                           IconButton(
+                             onPressed: () => _showLeaderDialog(
+                               context,
+                               docId: d.id,
+                               initial: data,
+                             ),
+-                            tooltip: 'Editar líder',
+                             icon: const Icon(Icons.edit_outlined),
+                           ),
+-                          IconButton(
+-                            onPressed: () =>
+-                                _sendLeaderAccess(context, d.id, data),
+-                            tooltip: 'Enviar acceso',
+-                            icon: const Icon(Icons.mark_email_unread_outlined),
+-                          ),
+                           IconButton(
+                             onPressed: () =>
+                                 _deleteDoc('leaders', d.id, context),
+-                            tooltip: 'Eliminar líder',
+                             icon: const Icon(Icons.delete_outline),
+                           ),
+                         ],
+@@ -2904,7 +2231,7 @@ class _LeadersDataTable extends StatelessWidget {
+                   DataCell(_TableText(safeString(data, 'email'), width: 260)),
+                   DataCell(
+                     _TableText(
+-                      _displayLeaderZone(safeString(data, 'zone')),
++                      safeString(data, 'zone', 'Sin zona'),
+                       width: 140,
+                     ),
+                   ),
+@@ -2927,12 +2254,6 @@ class _LeadersDataTable extends StatelessWidget {
+                           ),
+                           icon: const Icon(Icons.edit_outlined),
+                         ),
+-                        IconButton(
+-                          tooltip: 'Enviar acceso',
+-                          onPressed: () =>
+-                              _sendLeaderAccess(context, d.id, data),
+-                          icon: const Icon(Icons.mark_email_unread_outlined),
+-                        ),
+                         IconButton(
+                           tooltip: 'Eliminar líder',
+                           onPressed: () => _deleteDoc('leaders', d.id, context),
+@@ -2941,437 +2262,146 @@ class _LeadersDataTable extends StatelessWidget {
+                       ],
+                     ),
+                   ),
+-                ],
+-              );
+-            }).toList(),
+-          ),
+-        ),
+-      ),
+-    );
+-  }
+-}
+-
+-class _LeaderAccessResult {
+-  final String? uid;
+-  final bool createdAuthUser;
+-
+-  const _LeaderAccessResult({
+-    required this.uid,
+-    required this.createdAuthUser,
+-  });
+-}
+-
+-const List<String> _leaderZones = ['Zona 1', 'Zona 2', 'Zona 3'];
+-
+-String _normalizeLeaderZone(String value) {
+-  final clean = value.trim();
+-  if (clean.isEmpty) return '';
+-
+-  final numericZone = RegExp(
+-    r'^(zona\s*)?([0-9]+)$',
+-    caseSensitive: false,
+-  ).firstMatch(clean);
+-  if (numericZone != null) {
+-    return 'Zona ${numericZone.group(2)}';
+-  }
+-
+-  for (final zone in _leaderZones) {
+-    if (zone.toLowerCase() == clean.toLowerCase()) return zone;
+-  }
+-  return clean;
+-}
+-
+-String _displayLeaderZone(String value) {
+-  final zone = _normalizeLeaderZone(value);
+-  return zone.isEmpty ? 'Sin zona' : zone;
+-}
+-
+-List<String> _leaderZoneQueryValues(String value) {
+-  final normalized = _normalizeLeaderZone(value);
+-  final values = <String>{normalized};
+-  final numericZone = RegExp(
+-    r'^Zona\s+([0-9]+)$',
+-    caseSensitive: false,
+-  ).firstMatch(normalized);
+-  if (numericZone != null) values.add(numericZone.group(1)!);
+-  return values.toList();
+-}
+-
+-String _generateTemporaryPassword() {
+-  final stamp = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+-  return 'JV-$stamp!';
+-}
+-
+-String _authErrorMessage(FirebaseAuthException e) {
+-  switch (e.code) {
+-    case 'email-already-in-use':
+-      return 'Ese correo ya existe en Authentication.';
+-    case 'invalid-email':
+-      return 'El correo no tiene un formato válido.';
+-    case 'operation-not-allowed':
+-      return 'El proveedor Email/Password no está habilitado en Firebase Authentication.';
+-    case 'weak-password':
+-      return 'La contraseña temporal es muy débil.';
+-    case 'network-request-failed':
+-      return 'No se pudo conectar con Firebase. Revisa la conexión e intenta de nuevo.';
+-    default:
+-      return e.message ?? 'No se pudo preparar el acceso del líder.';
+-  }
+-}
+-
+-Future<_LeaderAccessResult> _ensureLeaderAuthAccess({
+-  required String email,
+-  required String temporaryPassword,
+-}) async {
+-  FirebaseApp? secondaryApp;
+-  try {
+-    secondaryApp = await Firebase.initializeApp(
+-      name: 'leader-access-${DateTime.now().microsecondsSinceEpoch}',
+-      options: DefaultFirebaseOptions.currentPlatform,
+-    );
+-    final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+-
+-    String? uid;
+-    var createdAuthUser = false;
+-    try {
+-      final credential = await secondaryAuth.createUserWithEmailAndPassword(
+-        email: email,
+-        password: temporaryPassword,
+-      );
+-      uid = credential.user?.uid;
+-      createdAuthUser = true;
+-    } on FirebaseAuthException catch (e) {
+-      if (e.code != 'email-already-in-use') rethrow;
+-    }
+-
+-    await secondaryAuth.sendPasswordResetEmail(email: email);
+-    await secondaryAuth.signOut();
+-
+-    return _LeaderAccessResult(
+-      uid: uid,
+-      createdAuthUser: createdAuthUser,
+-    );
+-  } finally {
+-    await secondaryApp?.delete();
+-  }
+-}
+-
+-Future<void> _migrateLeaderReferences({
+-  required String fromLeaderId,
+-  required String toLeaderId,
+-}) async {
+-  if (fromLeaderId == toLeaderId) return;
+-
+-  const collections = ['registros', 'reportes', 'jovenes', 'asistencias'];
+-  for (final collection in collections) {
+-    final snap = await db
+-        .collection(collection)
+-        .where('leaderId', isEqualTo: fromLeaderId)
+-        .get();
+-
+-    for (final chunk in _chunkList(snap.docs, 450)) {
+-      final batch = db.batch();
+-      for (final doc in chunk) {
+-        batch.update(doc.reference, {'leaderId': toLeaderId});
+-      }
+-      await batch.commit();
+-    }
+-  }
+-}
+-
+-Future<void> _sendLeaderAccess(
+-  BuildContext context,
+-  String docId,
+-  Map<String, dynamic> data,
+-) async {
+-  final messenger = ScaffoldMessenger.of(context);
+-  final email = safeString(data, 'email').trim().toLowerCase();
+-
+-  if (email.isEmpty || !email.contains('@')) {
+-    messenger.showSnackBar(
+-      const SnackBar(content: Text('Este líder no tiene un correo válido.')),
+-    );
+-    return;
+-  }
+-
+-  try {
+-    final normalizedZone = _normalizeLeaderZone(safeString(data, 'zone'));
+-    final result = await _ensureLeaderAuthAccess(
+-      email: email,
+-      temporaryPassword: _generateTemporaryPassword(),
+-    );
+-
+-    if (result.uid != null && result.uid != docId) {
+-      final payload = Map<String, dynamic>.from(data)
+-        ..remove('reports')
+-        ..['email'] = email
+-        ..['zone'] = normalizedZone
+-        ..['updatedAt'] = FieldValue.serverTimestamp();
+-
+-      await db.collection('leaders').doc(result.uid).set(
+-            payload,
+-            SetOptions(merge: true),
+-          );
+-      await _migrateLeaderReferences(
+-        fromLeaderId: docId,
+-        toLeaderId: result.uid!,
+-      );
+-      await db.collection('leaders').doc(docId).delete();
+-    } else {
+-      await db.collection('leaders').doc(docId).set(
+-        {
+-          'email': email,
+-          'zone': normalizedZone,
+-          'reports': FieldValue.delete(),
+-          'updatedAt': FieldValue.serverTimestamp(),
+-        },
+-        SetOptions(merge: true),
+-      );
+-    }
+-
+-    final message = result.createdAuthUser
+-        ? 'Cuenta creada y correo de acceso enviado a $email.'
+-        : result.uid == null && docId.length < 20
+-            ? 'El correo ya existe en Authentication. Se envió recuperación, pero valida que el documento use el UID real de Auth.'
+-            : 'Correo de recuperación enviado a $email.';
+-
+-    messenger.showSnackBar(SnackBar(content: Text(message)));
+-  } on FirebaseAuthException catch (e) {
+-    messenger.showSnackBar(SnackBar(content: Text(_authErrorMessage(e))));
+-  } catch (_) {
+-    messenger.showSnackBar(
+-      const SnackBar(content: Text('No se pudo enviar el acceso.')),
+-    );
+-  }
+-}
+-
+-Future<void> _showLeaderDialog(
+-  BuildContext context, {
+-  String? docId,
+-  Map<String, dynamic>? initial,
+-}) async {
+-  final formKey = GlobalKey<FormState>();
+-  final data = initial ?? {};
+-  final nameCtrl = TextEditingController(text: safeString(data, 'name'));
+-  final emailCtrl = TextEditingController(text: safeString(data, 'email'));
+-  final passwordCtrl = TextEditingController(
+-    text: _generateTemporaryPassword(),
+-  );
+-  final normalizedInitialZone = _normalizeLeaderZone(safeString(data, 'zone'));
+-  String zone = normalizedInitialZone.isEmpty
+-      ? _leaderZones.first
+-      : normalizedInitialZone;
+-  final zoneOptions = [
+-    ..._leaderZones,
+-    if (!_leaderZones.contains(zone)) zone,
+-  ];
+-  String status = safeString(data, 'status', 'activo');
+-  String role = safeString(data, 'role', 'leader');
+-
+-  await showDialog(
+-    context: context,
+-    builder: (context) {
+-      var saving = false;
+-
+-      return StatefulBuilder(
+-        builder: (context, setLocal) => AlertDialog(
+-          title: Text(docId == null ? 'Nuevo líder' : 'Editar líder'),
+-          content: SizedBox(
+-            width: 520,
+-            child: Form(
+-              key: formKey,
+-              child: SingleChildScrollView(
+-                child: Column(
+-                  children: [
+-                    if (docId == null) ...[
+-                      Container(
+-                        width: double.infinity,
+-                        padding: const EdgeInsets.all(12),
+-                        decoration: BoxDecoration(
+-                          color: const Color(0xFFEDEBFF),
+-                          borderRadius: BorderRadius.circular(10),
+-                        ),
+-                        child: const Text(
+-                          'Al guardar se creará la cuenta en Authentication, se registrará el perfil con el UID real y se enviará un correo para definir contraseña.',
+-                          style: TextStyle(fontWeight: FontWeight.w600),
+-                        ),
+-                      ),
+-                      const SizedBox(height: 10),
+-                    ],
+-                    TextFormField(
+-                      controller: nameCtrl,
+-                      decoration: const InputDecoration(labelText: 'Nombre'),
+-                      validator: (v) =>
+-                          (v ?? '').trim().isEmpty ? 'Requerido.' : null,
+-                    ),
+-                    const SizedBox(height: 10),
+-                    TextFormField(
+-                      controller: emailCtrl,
+-                      enabled: docId == null,
+-                      keyboardType: TextInputType.emailAddress,
+-                      decoration: const InputDecoration(labelText: 'Correo'),
+-                      validator: (v) {
+-                        final value = (v ?? '').trim();
+-                        if (value.isEmpty) return 'Requerido.';
+-                        if (!value.contains('@')) return 'Correo inválido.';
+-                        return null;
+-                      },
+-                    ),
+-                    const SizedBox(height: 10),
+-                    if (docId == null) ...[
+-                      TextFormField(
+-                        controller: passwordCtrl,
+-                        decoration: const InputDecoration(
+-                          labelText: 'Contraseña temporal',
+-                          helperText:
+-                              'Se usa solo para crear la cuenta; el líder recibirá correo para cambiarla.',
+-                        ),
+-                        validator: (v) {
+-                          if ((v ?? '').trim().length < 6) {
+-                            return 'Debe tener al menos 6 caracteres.';
+-                          }
+-                          return null;
+-                        },
+-                      ),
+-                      const SizedBox(height: 10),
+-                    ],
+-                    DropdownButtonFormField<String>(
+-                      value: zone,
+-                      items: zoneOptions
+-                          .map(
+-                            (item) => DropdownMenuItem(
+-                              value: item,
+-                              child: Text(item),
+-                            ),
+-                          )
+-                          .toList(),
+-                      onChanged: (v) => zone = v ?? _leaderZones.first,
+-                      decoration: const InputDecoration(labelText: 'Zona'),
+-                    ),
+-                    const SizedBox(height: 10),
+-                    DropdownButtonFormField<String>(
+-                      value: status,
+-                      items: const [
+-                        DropdownMenuItem(
+-                          value: 'activo',
+-                          child: Text('activo'),
+-                        ),
+-                        DropdownMenuItem(
+-                          value: 'inactivo',
+-                          child: Text('inactivo'),
+-                        ),
+-                      ],
+-                      onChanged: (v) => status = v ?? 'activo',
+-                      decoration: const InputDecoration(labelText: 'Estado'),
+-                    ),
+-                    const SizedBox(height: 10),
+-                    DropdownButtonFormField<String>(
+-                      value: role,
+-                      items: const [
+-                        DropdownMenuItem(value: 'admin', child: Text('admin')),
+-                        DropdownMenuItem(
+-                          value: 'leader',
+-                          child: Text('leader'),
+-                        ),
+-                      ],
+-                      onChanged: (v) => role = v ?? 'leader',
+-                      decoration: const InputDecoration(labelText: 'Rol'),
++                ],
++              );
++            }).toList(),
++          ),
++        ),
++      ),
++    );
++  }
++}
++
++Future<void> _showLeaderDialog(
++  BuildContext context, {
++  String? docId,
++  Map<String, dynamic>? initial,
++}) async {
++  final formKey = GlobalKey<FormState>();
++  final data = initial ?? {};
++  final uidCtrl = TextEditingController(text: docId ?? '');
++  final nameCtrl = TextEditingController(text: safeString(data, 'name'));
++  final emailCtrl = TextEditingController(text: safeString(data, 'email'));
++  final zoneCtrl = TextEditingController(text: safeString(data, 'zone'));
++  final reportsCtrl = TextEditingController(
++    text: safeString(data, 'reports', '0'),
++  );
++  String status = safeString(data, 'status', 'activo');
++  String role = safeString(data, 'role', 'leader');
++
++  await showDialog(
++    context: context,
++    builder: (context) => AlertDialog(
++      title: Text(docId == null ? 'Nuevo líder' : 'Editar líder'),
++      content: SizedBox(
++        width: 520,
++        child: Form(
++          key: formKey,
++          child: SingleChildScrollView(
++            child: Column(
++              children: [
++                if (docId == null) ...[
++                  TextFormField(
++                    controller: uidCtrl,
++                    decoration: const InputDecoration(
++                      labelText: 'UID del usuario en Authentication',
+                     ),
++                    validator: (v) =>
++                        (v ?? '').trim().isEmpty ? 'Requerido.' : null,
++                  ),
++                  const SizedBox(height: 10),
++                ],
++                TextFormField(
++                  controller: nameCtrl,
++                  decoration: const InputDecoration(labelText: 'Nombre'),
++                  validator: (v) =>
++                      (v ?? '').trim().isEmpty ? 'Requerido.' : null,
++                ),
++                const SizedBox(height: 10),
++                TextFormField(
++                  controller: emailCtrl,
++                  decoration: const InputDecoration(labelText: 'Correo'),
++                  validator: (v) {
++                    final value = (v ?? '').trim();
++                    if (value.isEmpty) return 'Requerido.';
++                    if (!value.contains('@')) return 'Correo inválido.';
++                    return null;
++                  },
++                ),
++                const SizedBox(height: 10),
++                TextFormField(
++                  controller: zoneCtrl,
++                  decoration: const InputDecoration(labelText: 'Zona'),
++                  validator: (v) =>
++                      (v ?? '').trim().isEmpty ? 'Requerido.' : null,
++                ),
++                const SizedBox(height: 10),
++                TextFormField(
++                  controller: reportsCtrl,
++                  keyboardType: TextInputType.number,
++                  decoration: const InputDecoration(labelText: 'Reports'),
++                ),
++                const SizedBox(height: 10),
++                DropdownButtonFormField<String>(
++                  value: status,
++                  items: const [
++                    DropdownMenuItem(value: 'activo', child: Text('activo')),
++                    DropdownMenuItem(
++                        value: 'inactivo', child: Text('inactivo')),
++                  ],
++                  onChanged: (v) => status = v ?? 'activo',
++                  decoration: const InputDecoration(labelText: 'Estado'),
++                ),
++                const SizedBox(height: 10),
++                DropdownButtonFormField<String>(
++                  value: role,
++                  items: const [
++                    DropdownMenuItem(value: 'admin', child: Text('admin')),
++                    DropdownMenuItem(value: 'leader', child: Text('leader')),
+                   ],
++                  onChanged: (v) => role = v ?? 'leader',
++                  decoration: const InputDecoration(labelText: 'Rol'),
+                 ),
+-              ),
++              ],
+             ),
+           ),
+-          actions: [
+-            TextButton(
+-              onPressed: saving ? null : () => Navigator.pop(context),
+-              child: const Text('Cancelar'),
+-            ),
+-            FilledButton(
+-              onPressed: saving
+-                  ? null
+-                  : () async {
+-                      if (!(formKey.currentState?.validate() ?? false)) return;
+-                      setLocal(() => saving = true);
+-
+-                      final messenger = ScaffoldMessenger.of(context);
+-                      final email = emailCtrl.text.trim().toLowerCase();
+-                      final payload = {
+-                        'name': nameCtrl.text.trim(),
+-                        'email': email,
+-                        'zone': zone,
+-                        'status': status,
+-                        'role': role,
+-                        'createdAt': initial?['createdAt'] ??
+-                            FieldValue.serverTimestamp(),
+-                        'updatedAt': FieldValue.serverTimestamp(),
+-                      };
+-                      if (docId != null) {
+-                        payload['reports'] = FieldValue.delete();
+-                      }
+-
+-                      try {
+-                        final targetDocId = docId ??
+-                            (await _ensureLeaderAuthAccess(
+-                              email: email,
+-                              temporaryPassword: passwordCtrl.text.trim(),
+-                            ))
+-                                .uid;
+-
+-                        if (targetDocId == null) {
+-                          throw FirebaseAuthException(
+-                            code: 'email-already-in-use',
+-                          );
+-                        }
++        ),
++      ),
++      actions: [
++        TextButton(
++          onPressed: () => Navigator.pop(context),
++          child: const Text('Cancelar'),
++        ),
++        FilledButton(
++          onPressed: () async {
++            if (!(formKey.currentState?.validate() ?? false)) return;
+ 
+-                        await db.collection('leaders').doc(targetDocId).set(
+-                              payload,
+-                              SetOptions(merge: true),
+-                            );
+-
+-                        if (!context.mounted) return;
+-                        Navigator.pop(context);
+-                        messenger.showSnackBar(
+-                          SnackBar(
+-                            content: Text(
+-                              docId == null
+-                                  ? 'Líder creado y acceso enviado a $email.'
+-                                  : 'Líder actualizado.',
+-                            ),
+-                          ),
+-                        );
+-                      } on FirebaseAuthException catch (e) {
+-                        messenger.showSnackBar(
+-                          SnackBar(content: Text(_authErrorMessage(e))),
+-                        );
+-                      } catch (_) {
+-                        messenger.showSnackBar(
+-                          const SnackBar(
+-                            content: Text('No se pudo guardar el líder.'),
+-                          ),
+-                        );
+-                      } finally {
+-                        if (context.mounted) {
+-                          setLocal(() => saving = false);
+-                        }
+-                      }
+-                    },
+-              child: saving
+-                  ? const SizedBox(
+-                      width: 18,
+-                      height: 18,
+-                      child: CircularProgressIndicator(strokeWidth: 2),
+-                    )
+-                  : const Text('Guardar'),
+-            ),
+-          ],
++            final targetDocId = docId ?? uidCtrl.text.trim();
++
++            final payload = {
++              'name': nameCtrl.text.trim(),
++              'email': emailCtrl.text.trim(),
++              'zone': zoneCtrl.text.trim(),
++              'status': status,
++              'reports': int.tryParse(reportsCtrl.text.trim()) ?? 0,
++              'role': role,
++              'createdAt':
++                  initial?['createdAt'] ?? FieldValue.serverTimestamp(),
++              'updatedAt': FieldValue.serverTimestamp(),
++            };
++
++            await db.collection('leaders').doc(targetDocId).set(
++                  payload,
++                  SetOptions(merge: true),
++                );
++
++            if (context.mounted) Navigator.pop(context);
++          },
++          child: const Text('Guardar'),
+         ),
+-      );
+-    },
++      ],
++    ),
+   );
+-  nameCtrl.dispose();
+-  emailCtrl.dispose();
+-  passwordCtrl.dispose();
+ }
+ 
+ class RegistrosPage extends StatelessWidget {
+@@ -4860,10 +3890,7 @@ class _ActividadesPageState extends State<ActividadesPage> {
+                                     ),
+                                     ...leaders
+                                         .map(
+-                                          (e) => _normalizeLeaderZone(
+-                                            safeString(e.data(), 'zone'),
+-                                          ),
+-                                        )
++                                            (e) => safeString(e.data(), 'zone'))
+                                         .where((zone) => zone.isNotEmpty)
+                                         .toSet()
+                                         .map(
+@@ -5323,8 +4350,6 @@ class _AsistenciaPageState extends State<AsistenciaPage> {
+   late Future<_AttendancePageData> _pageDataFuture;
+   final Map<String, bool> _localAttendance = {};
+   final Map<String, String> _attendanceDocIds = {};
+-  String attendanceSearch = '';
+-  bool bulkSaving = false;
+ 
+   @override
+   void initState() {
+@@ -5346,10 +4371,9 @@ class _AsistenciaPageState extends State<AsistenciaPage> {
+     var docs = snap.docs;
+ 
+     if (widget.selectedZone != null && widget.selectedZone!.isNotEmpty) {
+-      final zoneValues = _leaderZoneQueryValues(widget.selectedZone!);
+       final leadersSnap = await db
+           .collection('leaders')
+-          .where('zone', whereIn: zoneValues)
++          .where('zone', isEqualTo: widget.selectedZone)
+           .get();
+       final allowedIds = leadersSnap.docs.map((e) => e.id).toSet();
+       docs =
+@@ -5404,36 +4428,6 @@ class _AsistenciaPageState extends State<AsistenciaPage> {
+     }
+   }
+ 
+-  Future<void> _setAttendanceFor(
+-    Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> jovenes,
+-    bool attended,
+-  ) async {
+-    if (bulkSaving) return;
+-    final targets = jovenes.toList();
+-    if (targets.isEmpty) return;
+-
+-    setState(() => bulkSaving = true);
+-    try {
+-      for (final joven in targets) {
+-        _localAttendance[joven.id] = attended;
+-        await _saveAttendance(joven.id, attended);
+-      }
+-      if (!mounted) return;
+-      setState(() {});
+-      ScaffoldMessenger.of(context).showSnackBar(
+-        SnackBar(
+-          content: Text(
+-            attended
+-                ? 'Se marcaron ${targets.length} jóvenes visibles como presentes.'
+-                : 'Se limpiaron ${targets.length} marcas visibles.',
+-          ),
+-        ),
+-      );
+-    } finally {
+-      if (mounted) setState(() => bulkSaving = false);
+-    }
+-  }
+-
+   @override
+   Widget build(BuildContext context) {
+     final activityName = safeString(widget.activityData, 'nombre', 'Actividad');
+@@ -5465,146 +4459,57 @@ class _AsistenciaPageState extends State<AsistenciaPage> {
+             if (jovenes.isEmpty) {
+               return const Center(child: Text('No hay jóvenes para mostrar.'));
+             }
+-            final filteredJovenes = attendanceSearch.isEmpty
+-                ? jovenes
+-                : jovenes.where((joven) {
+-                    final data = joven.data();
+-                    final name = safeString(data, 'nombre').toLowerCase();
+-                    final phone = safeString(data, 'telefono').toLowerCase();
+-                    return name.contains(attendanceSearch) ||
+-                        phone.contains(attendanceSearch);
+-                  }).toList();
+-            final presentCount = jovenes
+-                .where((joven) => _localAttendance[joven.id] == true)
+-                .length;
+-            final visiblePresentCount = filteredJovenes
+-                .where((joven) => _localAttendance[joven.id] == true)
+-                .length;
+ 
+             return Column(
+               children: [
+                 Card(
+                   child: Padding(
+                     padding: const EdgeInsets.all(16),
+-                    child: Column(
+-                      crossAxisAlignment: CrossAxisAlignment.start,
++                    child: Wrap(
++                      spacing: 10,
++                      runSpacing: 10,
+                       children: [
+-                        Wrap(
+-                          spacing: 10,
+-                          runSpacing: 10,
+-                          children: [
+-                            Chip(
+-                              avatar:
+-                                  const Icon(Icons.people_outline, size: 18),
+-                              label: Text('${jovenes.length} jóvenes'),
+-                            ),
+-                            Chip(
+-                              avatar: const Icon(Icons.check_circle, size: 18),
+-                              label: Text('$presentCount presentes'),
+-                            ),
+-                            if (filteredJovenes.length != jovenes.length)
+-                              Chip(
+-                                avatar: const Icon(Icons.search, size: 18),
+-                                label: Text(
+-                                  '${filteredJovenes.length} visibles · $visiblePresentCount presentes',
+-                                ),
+-                              ),
+-                            if (widget.selectedLeaderId != null)
+-                              const Chip(
+-                                avatar: Icon(
+-                                  Icons.manage_accounts_outlined,
+-                                  size: 18,
+-                                ),
+-                                label: Text('Filtro por líder'),
+-                              ),
+-                            if (widget.selectedZone != null &&
+-                                widget.selectedZone!.isNotEmpty)
+-                              Chip(
+-                                avatar:
+-                                    const Icon(Icons.place_outlined, size: 18),
+-                                label: Text('Zona: ${widget.selectedZone}'),
+-                              ),
+-                          ],
++                        Chip(
++                          avatar: const Icon(Icons.people_outline, size: 18),
++                          label: Text('${jovenes.length} jóvenes visibles'),
+                         ),
+-                        const SizedBox(height: 14),
+-                        Wrap(
+-                          spacing: 12,
+-                          runSpacing: 12,
+-                          crossAxisAlignment: WrapCrossAlignment.center,
+-                          children: [
+-                            SizedBox(
+-                              width: 320,
+-                              child: TextField(
+-                                decoration: const InputDecoration(
+-                                  hintText: 'Buscar joven o teléfono...',
+-                                  prefixIcon: Icon(Icons.search),
+-                                ),
+-                                onChanged: (value) => setState(
+-                                  () => attendanceSearch =
+-                                      value.toLowerCase().trim(),
+-                                ),
+-                              ),
+-                            ),
+-                            FilledButton.tonalIcon(
+-                              onPressed: bulkSaving
+-                                  ? null
+-                                  : () => _setAttendanceFor(
+-                                        filteredJovenes,
+-                                        true,
+-                                      ),
+-                              icon: bulkSaving
+-                                  ? const SizedBox(
+-                                      width: 16,
+-                                      height: 16,
+-                                      child: CircularProgressIndicator(
+-                                        strokeWidth: 2,
+-                                      ),
+-                                    )
+-                                  : const Icon(Icons.done_all),
+-                              label: const Text('Marcar visibles'),
+-                            ),
+-                            OutlinedButton.icon(
+-                              onPressed: bulkSaving
+-                                  ? null
+-                                  : () => _setAttendanceFor(
+-                                        filteredJovenes,
+-                                        false,
+-                                      ),
+-                              icon: const Icon(Icons.remove_done_outlined),
+-                              label: const Text('Limpiar visibles'),
++                        if (widget.selectedLeaderId != null)
++                          const Chip(
++                            avatar: Icon(
++                              Icons.manage_accounts_outlined,
++                              size: 18,
+                             ),
+-                          ],
+-                        ),
++                            label: Text('Filtro por líder aplicado'),
++                          ),
++                        if (widget.selectedZone != null &&
++                            widget.selectedZone!.isNotEmpty)
++                          Chip(
++                            avatar: const Icon(Icons.place_outlined, size: 18),
++                            label: Text('Zona: ${widget.selectedZone}'),
++                          ),
+                       ],
+                     ),
+                   ),
+                 ),
+                 const SizedBox(height: 14),
+                 Expanded(
+-                  child: filteredJovenes.isEmpty
+-                      ? const _EmptyData(
+-                          'No hay jóvenes que coincidan con la búsqueda.',
+-                        )
+-                      : ListView.separated(
+-                          itemCount: filteredJovenes.length,
+-                          separatorBuilder: (_, __) =>
+-                              const Divider(height: 24),
+-                          itemBuilder: (context, index) {
+-                            final joven = filteredJovenes[index];
+-                            final jovenData = joven.data();
+-                            return _AttendanceTile(
+-                              jovenNombre: safeString(jovenData, 'nombre'),
+-                              telefono: safeString(jovenData, 'telefono'),
+-                              initialValue: _localAttendance[joven.id] ?? false,
+-                              onChanged: (value) async {
+-                                setState(
+-                                  () => _localAttendance[joven.id] = value,
+-                                );
+-                                await _saveAttendance(joven.id, value);
+-                              },
+-                            );
+-                          },
+-                        ),
++                  child: ListView.separated(
++                    itemCount: jovenes.length,
++                    separatorBuilder: (_, __) => const Divider(height: 24),
++                    itemBuilder: (context, index) {
++                      final joven = jovenes[index];
++                      final jovenData = joven.data();
++                      return _AttendanceTile(
++                        jovenNombre: safeString(jovenData, 'nombre'),
++                        telefono: safeString(jovenData, 'telefono'),
++                        initialValue: _localAttendance[joven.id] ?? false,
++                        onChanged: (value) async {
++                          setState(() => _localAttendance[joven.id] = value);
++                          await _saveAttendance(joven.id, value);
++                        },
++                      );
++                    },
++                  ),
+                 ),
+               ],
+             );
+@@ -5688,173 +4593,38 @@ class ConfiguracionPage extends StatelessWidget {
+   @override
+   Widget build(BuildContext context) {
+     return ListView(
+-      padding: const EdgeInsets.only(bottom: 24),
+       children: [
+-        _Panel(
+-          title: 'Perfil',
+-          eyebrow: 'CUENTA ACTIVA',
+-          child: Row(
+-            crossAxisAlignment: CrossAxisAlignment.start,
+-            children: [
+-              CircleAvatar(
+-                radius: 30,
+-                backgroundColor: const Color(0xFFEDEBFF),
+-                child: Text(
+-                  leader.name.trim().isEmpty
+-                      ? 'JV'
+-                      : leader.name.trim().characters.first.toUpperCase(),
+-                  style: const TextStyle(
+-                    color: Color(0xFF4F46E5),
+-                    fontWeight: FontWeight.w900,
+-                  ),
++        Card(
++          child: Padding(
++            padding: const EdgeInsets.all(18),
++            child: Column(
++              crossAxisAlignment: CrossAxisAlignment.start,
++              children: [
++                const Text(
++                  'Configuración',
++                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                 ),
+-              ),
+-              const SizedBox(width: 16),
+-              Expanded(
+-                child: Column(
+-                  crossAxisAlignment: CrossAxisAlignment.start,
+-                  children: [
+-                    Text(
+-                      leader.name,
+-                      style: const TextStyle(
+-                        fontSize: 22,
+-                        fontWeight: FontWeight.w900,
+-                      ),
+-                    ),
+-                    const SizedBox(height: 4),
+-                    Text(
+-                      currentUser.email ?? leader.email,
+-                      style: const TextStyle(color: Color(0xFF6B7280)),
+-                    ),
+-                    const SizedBox(height: 12),
+-                    Wrap(
+-                      spacing: 8,
+-                      runSpacing: 8,
+-                      children: [
+-                        Chip(
+-                          avatar: const Icon(Icons.verified_user, size: 18),
+-                          label: Text(
+-                            isAdmin(leader.role) ? 'Administrador' : 'Líder',
+-                          ),
+-                        ),
+-                        Chip(
+-                          avatar: const Icon(Icons.place_outlined, size: 18),
+-                          label: Text(
+-                            leader.zone.isEmpty ? 'Sin zona' : leader.zone,
+-                          ),
+-                        ),
+-                        Chip(
+-                          avatar: const Icon(Icons.shield_outlined, size: 18),
+-                          label: Text(
+-                            leader.status.isEmpty
+-                                ? 'Sin estado'
+-                                : leader.status,
+-                          ),
+-                        ),
+-                      ],
+-                    ),
+-                  ],
++                const SizedBox(height: 16),
++                ListTile(
++                  contentPadding: EdgeInsets.zero,
++                  leading: const CircleAvatar(child: Icon(Icons.person)),
++                  title: Text(leader.name),
++                  subtitle: Text(currentUser.email ?? leader.email),
++                  trailing: Chip(label: Text(leader.role)),
+                 ),
+-              ),
+-            ],
+-          ),
+-        ),
+-        const SizedBox(height: 16),
+-        _Panel(
+-          title: 'Permisos',
+-          child: Column(
+-            children: [
+-              _SettingsRow(
+-                icon: Icons.admin_panel_settings_outlined,
+-                title: 'Nivel de acceso',
+-                value: isAdmin(leader.role)
+-                    ? 'Acceso completo al sistema'
+-                    : 'Gestión limitada a tus registros',
+-              ),
+-              const Divider(height: 24),
+-              _SettingsRow(
+-                icon: Icons.groups_outlined,
+-                title: 'Jóvenes y reportes',
+-                value: isAdmin(leader.role)
+-                    ? 'Puede consultar registros de todos los líderes'
+-                    : 'Solo puede consultar sus jóvenes y reportes',
+-              ),
+-              const Divider(height: 24),
+-              _SettingsRow(
+-                icon: Icons.event_available_outlined,
+-                title: 'Asistencia',
+-                value: isAdmin(leader.role)
+-                    ? 'Puede filtrar asistencia por líder o zona'
+-                    : 'Puede marcar asistencia de sus jóvenes',
+-              ),
+-            ],
+-          ),
+-        ),
+-        const SizedBox(height: 16),
+-        _Panel(
+-          title: 'Sesión',
+-          child: Row(
+-            children: [
+-              const Expanded(
+-                child: Text(
+-                  'Cierra sesión al terminar de trabajar en un equipo compartido.',
+-                  style: TextStyle(color: Color(0xFF6B7280)),
++                const Divider(height: 28),
++                const Text(
++                  'Permisos actuales',
++                  style: TextStyle(fontWeight: FontWeight.w700),
+                 ),
+-              ),
+-              const SizedBox(width: 16),
+-              FilledButton.icon(
+-                onPressed: () => auth.signOut(),
+-                icon: const Icon(Icons.logout),
+-                label: const Text('Cerrar sesión'),
+-              ),
+-            ],
+-          ),
+-        ),
+-      ],
+-    );
+-  }
+-}
+-
+-class _SettingsRow extends StatelessWidget {
+-  final IconData icon;
+-  final String title;
+-  final String value;
+-
+-  const _SettingsRow({
+-    required this.icon,
+-    required this.title,
+-    required this.value,
+-  });
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return Row(
+-      crossAxisAlignment: CrossAxisAlignment.start,
+-      children: [
+-        Container(
+-          width: 42,
+-          height: 42,
+-          decoration: BoxDecoration(
+-            color: const Color(0xFFF3F4F6),
+-            borderRadius: BorderRadius.circular(12),
+-          ),
+-          child: Icon(icon, color: const Color(0xFF4F46E5)),
+-        ),
+-        const SizedBox(width: 12),
+-        Expanded(
+-          child: Column(
+-            crossAxisAlignment: CrossAxisAlignment.start,
+-            children: [
+-              Text(
+-                title,
+-                style: const TextStyle(fontWeight: FontWeight.w900),
+-              ),
+-              const SizedBox(height: 4),
+-              Text(
+-                value,
+-                style: const TextStyle(color: Color(0xFF6B7280)),
+-              ),
+-            ],
++                const SizedBox(height: 10),
++                Text(
++                  isAdmin(leader.role)
++                      ? 'Como admin, puedes ver y administrar todo.'
++                      : 'Como líder, solo puedes gestionar tu información, tus jóvenes, tus reportes y tus asistencias.',
++                ),
++              ],
++            ),
+           ),
+         ),
+       ],
+diff --git b/pubspec.yaml a/pubspec.yaml
+index 9367c7f..25ca865 100644
+--- b/pubspec.yaml
++++ a/pubspec.yaml
+@@ -26,5 +26,3 @@ dev_dependencies:
+ 
+ flutter:
+   uses-material-design: true
+-  assets:
+-    - assets/images/login_background.jpeg

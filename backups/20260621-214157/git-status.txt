@@ -1,0 +1,6 @@
+ M .firebase/hosting.YnVpbGRcd2Vi.cache
+ M firestore.rules
+ M lib/main.dart
+ M pubspec.yaml
+?? assets/
+?? backups/

@@ -1,8 +1,7 @@
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:excel/excel.dart' hide Border, TextDirection, TextSpan;
+import 'package:excel/excel.dart' hide Border;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -1612,7 +1611,6 @@ class _AttendanceByDateChartPanel extends StatefulWidget {
 class _AttendanceByDateChartPanelState
     extends State<_AttendanceByDateChartPanel> {
   String selectedActivity = 'Todas';
-  String selectedMonth = 'Todos';
 
   @override
   Widget build(BuildContext context) {
@@ -1654,86 +1652,43 @@ class _AttendanceByDateChartPanelState
                 !data.activityNames.contains(selectedActivity)) {
               selectedActivity = 'Todas';
             }
-            if (selectedMonth != 'Todos' &&
-                !data.monthOptions.any((month) => month.key == selectedMonth)) {
-              selectedMonth = 'Todos';
-            }
 
-            final groups = data.groupsFor(
-              selectedActivity: selectedActivity,
-              selectedMonth: selectedMonth,
-            );
+            final groups = data.groupsFor(selectedActivity);
             final mobile = MediaQuery.of(context).size.width < 700;
-            final visibleActivityNames = data.visibleActivityNamesFor(
-              selectedActivity: selectedActivity,
-              groups: groups,
-            );
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    SizedBox(
-                      width: mobile ? double.infinity : 300,
-                      child: DropdownButtonFormField<String>(
-                        value: selectedActivity,
-                        decoration: const InputDecoration(
-                          labelText: 'Actividad',
-                          prefixIcon: Icon(Icons.event_available_outlined),
-                        ),
-                        items: [
-                          const DropdownMenuItem(
-                            value: 'Todas',
-                            child: Text('Todas'),
-                          ),
-                          ...data.activityNames.map(
-                            (name) => DropdownMenuItem(
-                              value: name,
-                              child: Text(name),
-                            ),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() => selectedActivity = value);
-                        },
-                      ),
+                SizedBox(
+                  width: mobile ? double.infinity : 300,
+                  child: DropdownButtonFormField<String>(
+                    value: selectedActivity,
+                    decoration: const InputDecoration(
+                      labelText: 'Actividad',
+                      prefixIcon: Icon(Icons.event_available_outlined),
                     ),
-                    SizedBox(
-                      width: mobile ? double.infinity : 240,
-                      child: DropdownButtonFormField<String>(
-                        value: selectedMonth,
-                        decoration: const InputDecoration(
-                          labelText: 'Mes',
-                          prefixIcon: Icon(Icons.calendar_month_outlined),
-                        ),
-                        items: [
-                          const DropdownMenuItem(
-                            value: 'Todos',
-                            child: Text('Todos'),
-                          ),
-                          ...data.monthOptions.map(
-                            (month) => DropdownMenuItem(
-                              value: month.key,
-                              child: Text(month.label),
-                            ),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() => selectedMonth = value);
-                        },
+                    items: [
+                      const DropdownMenuItem(
+                        value: 'Todas',
+                        child: Text('Todas'),
                       ),
-                    ),
-                  ],
+                      ...data.activityNames.map(
+                        (name) => DropdownMenuItem(
+                          value: name,
+                          child: Text(name),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() => selectedActivity = value);
+                    },
+                  ),
                 ),
                 const SizedBox(height: 18),
                 if (groups.isEmpty)
                   const _EmptyData(
-                    'No hay asistencias para los filtros seleccionados.',
+                    'No hay asistencias para la actividad seleccionada.',
                   )
                 else
                   Column(
@@ -1757,7 +1712,9 @@ class _AttendanceByDateChartPanelState
                                   height: double.infinity,
                                   child: _GroupedAttendanceChart(
                                     groups: groups,
-                                    activityNames: visibleActivityNames,
+                                    activityNames: selectedActivity == 'Todas'
+                                        ? data.activityNames
+                                        : [selectedActivity],
                                   ),
                                 ),
                               ),
@@ -1767,7 +1724,9 @@ class _AttendanceByDateChartPanelState
                       ),
                       const SizedBox(height: 12),
                       _AttendanceChartLegend(
-                        activityNames: visibleActivityNames,
+                        activityNames: selectedActivity == 'Todas'
+                            ? data.activityNames
+                            : [selectedActivity],
                       ),
                     ],
                   ),
@@ -1782,31 +1741,17 @@ class _AttendanceByDateChartPanelState
 
 class _AttendanceByDateData {
   final List<String> activityNames;
-  final List<_AttendanceMonthOption> monthOptions;
   final List<_AttendanceDateGroup> groups;
 
   const _AttendanceByDateData({
     required this.activityNames,
-    required this.monthOptions,
     required this.groups,
   });
 
-  List<_AttendanceDateGroup> groupsFor({
-    required String selectedActivity,
-    required String selectedMonth,
-  }) {
+  List<_AttendanceDateGroup> groupsFor(String selectedActivity) {
+    if (selectedActivity == 'Todas') return groups;
     final filtered = <_AttendanceDateGroup>[];
     for (final group in groups) {
-      if (selectedMonth != 'Todos' &&
-          DateFormat('yyyy-MM').format(group.date) != selectedMonth) {
-        continue;
-      }
-
-      if (selectedActivity == 'Todas') {
-        filtered.add(group);
-        continue;
-      }
-
       final count = group.countsByActivity[selectedActivity] ?? 0;
       if (count == 0) continue;
       filtered.add(
@@ -1819,30 +1764,6 @@ class _AttendanceByDateData {
     }
     return filtered;
   }
-
-  List<String> visibleActivityNamesFor({
-    required String selectedActivity,
-    required List<_AttendanceDateGroup> groups,
-  }) {
-    if (selectedActivity != 'Todas') return [selectedActivity];
-    final names = groups
-        .expand((group) => group.countsByActivity.keys)
-        .where((name) => activityNames.contains(name))
-        .toSet()
-        .toList()
-      ..sort();
-    return names;
-  }
-}
-
-class _AttendanceMonthOption {
-  final String key;
-  final String label;
-
-  const _AttendanceMonthOption({
-    required this.key,
-    required this.label,
-  });
 }
 
 class _AttendanceDateGroup {
@@ -1871,38 +1792,8 @@ Future<_AttendanceByDateData> _loadAttendanceByDateData({
   }
 
   if (activityById.isEmpty) {
-    return const _AttendanceByDateData(
-      activityNames: [],
-      monthOptions: [],
-      groups: [],
-    );
+    return const _AttendanceByDateData(activityNames: [], groups: []);
   }
-
-  final catalogActivityNames = activityById.values
-      .map((activity) => safeString(activity.data(), 'nombre').trim())
-      .where((name) => name.isNotEmpty)
-      .toSet()
-      .toList()
-    ..sort();
-  final catalogMonths = <String, DateTime>{};
-
-  for (final activity in activityById.values) {
-    final date = _extractDate(activity.data()['fecha']);
-    if (date == null) continue;
-    final normalizedMonth = DateTime(date.year, date.month);
-    catalogMonths[DateFormat('yyyy-MM').format(normalizedMonth)] =
-        normalizedMonth;
-  }
-
-  final monthOptions = catalogMonths.entries
-      .map(
-        (entry) => _AttendanceMonthOption(
-          key: entry.key,
-          label: _formatDashboardMonth(entry.value),
-        ),
-      )
-      .toList()
-    ..sort((a, b) => a.key.compareTo(b.key));
 
   final attendanceSnap = await db.collection('asistencias').get();
   final allowedJovenIds = await _loadAllowedDashboardJovenIds(
@@ -1954,29 +1845,16 @@ Future<_AttendanceByDateData> _loadAttendanceByDateData({
       )
       .toList()
     ..sort((a, b) => a.date.compareTo(b.date));
+  final attendedActivityNames = groups
+      .expand((group) => group.countsByActivity.keys)
+      .toSet()
+      .toList()
+    ..sort();
+
   return _AttendanceByDateData(
-    activityNames: catalogActivityNames,
-    monthOptions: monthOptions,
+    activityNames: attendedActivityNames,
     groups: groups,
   );
-}
-
-String _formatDashboardMonth(DateTime date) {
-  const months = [
-    'Enero',
-    'Febrero',
-    'Marzo',
-    'Abril',
-    'Mayo',
-    'Junio',
-    'Julio',
-    'Agosto',
-    'Septiembre',
-    'Octubre',
-    'Noviembre',
-    'Diciembre',
-  ];
-  return '${months[date.month - 1]} ${date.year}';
 }
 
 Future<Set<String>?> _loadAllowedDashboardJovenIds({
@@ -2018,6 +1896,7 @@ class _GroupedAttendanceChart extends StatelessWidget {
       painter: _GroupedAttendanceChartPainter(
         groups: groups,
         activityNames: activityNames,
+        textDirection: Directionality.of(context),
       ),
     );
   }
@@ -2026,10 +1905,12 @@ class _GroupedAttendanceChart extends StatelessWidget {
 class _GroupedAttendanceChartPainter extends CustomPainter {
   final List<_AttendanceDateGroup> groups;
   final List<String> activityNames;
+  final TextDirection textDirection;
 
   const _GroupedAttendanceChartPainter({
     required this.groups,
     required this.activityNames,
+    required this.textDirection,
   });
 
   static const _palette = [
@@ -2070,12 +1951,12 @@ class _GroupedAttendanceChartPainter extends CustomPainter {
         .fold<int>(0, (max, value) => value > max ? value : max);
     final effectiveMax = maxValue <= 0 ? 1 : maxValue;
     final step = (effectiveMax / 4).ceil().clamp(1, effectiveMax).toInt();
-    final yMax = ((effectiveMax / step).ceil() * step).clamp(1, 999999).toInt();
+    final yMax =
+        ((effectiveMax / step).ceil() * step).clamp(1, 999999).toInt();
 
     for (var value = 0; value <= yMax; value += step) {
       final y = top + chartHeight - (value / yMax) * chartHeight;
-      canvas.drawLine(
-          Offset(left, y), Offset(size.width - right, y), gridPaint);
+      canvas.drawLine(Offset(left, y), Offset(size.width - right, y), gridPaint);
       _drawText(
         canvas,
         '$value',
@@ -2104,17 +1985,17 @@ class _GroupedAttendanceChartPainter extends CustomPainter {
     final groupWidth = chartWidth / groups.length;
     final barGap = visibleActivities.length == 1 ? 0.0 : 3.0;
     final barsWidth = groupWidth * .68;
-    final barWidth = ((barsWidth - barGap * (visibleActivities.length - 1)) /
-            visibleActivities.length)
-        .clamp(4.0, 24.0)
-        .toDouble();
+    final barWidth =
+        ((barsWidth - barGap * (visibleActivities.length - 1)) /
+                visibleActivities.length)
+            .clamp(4.0, 24.0)
+            .toDouble();
 
     for (var groupIndex = 0; groupIndex < groups.length; groupIndex++) {
       final group = groups[groupIndex];
       final groupStart = left + groupIndex * groupWidth;
-      final barsStart = groupStart +
-          (groupWidth -
-                  (barWidth * visibleActivities.length) -
+      final barsStart =
+          groupStart + (groupWidth - (barWidth * visibleActivities.length) -
                   barGap * (visibleActivities.length - 1)) /
               2;
 
@@ -2178,7 +2059,7 @@ class _GroupedAttendanceChartPainter extends CustomPainter {
     final painter = TextPainter(
       text: TextSpan(text: text, style: style),
       textAlign: align,
-      textDirection: ui.TextDirection.ltr,
+      textDirection: textDirection,
       maxLines: 1,
       ellipsis: '...',
     )..layout(maxWidth: width);
@@ -2188,7 +2069,8 @@ class _GroupedAttendanceChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _GroupedAttendanceChartPainter oldDelegate) {
     return oldDelegate.groups != groups ||
-        oldDelegate.activityNames != activityNames;
+        oldDelegate.activityNames != activityNames ||
+        oldDelegate.textDirection != textDirection;
   }
 }
 
