@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:excel/excel.dart' hide Border;
+import 'package:excel/excel.dart' hide Border, TextDirection, TextSpan;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -1951,12 +1951,12 @@ class _GroupedAttendanceChartPainter extends CustomPainter {
         .fold<int>(0, (max, value) => value > max ? value : max);
     final effectiveMax = maxValue <= 0 ? 1 : maxValue;
     final step = (effectiveMax / 4).ceil().clamp(1, effectiveMax).toInt();
-    final yMax =
-        ((effectiveMax / step).ceil() * step).clamp(1, 999999).toInt();
+    final yMax = ((effectiveMax / step).ceil() * step).clamp(1, 999999).toInt();
 
     for (var value = 0; value <= yMax; value += step) {
       final y = top + chartHeight - (value / yMax) * chartHeight;
-      canvas.drawLine(Offset(left, y), Offset(size.width - right, y), gridPaint);
+      canvas.drawLine(
+          Offset(left, y), Offset(size.width - right, y), gridPaint);
       _drawText(
         canvas,
         '$value',
@@ -1985,17 +1985,17 @@ class _GroupedAttendanceChartPainter extends CustomPainter {
     final groupWidth = chartWidth / groups.length;
     final barGap = visibleActivities.length == 1 ? 0.0 : 3.0;
     final barsWidth = groupWidth * .68;
-    final barWidth =
-        ((barsWidth - barGap * (visibleActivities.length - 1)) /
-                visibleActivities.length)
-            .clamp(4.0, 24.0)
-            .toDouble();
+    final barWidth = ((barsWidth - barGap * (visibleActivities.length - 1)) /
+            visibleActivities.length)
+        .clamp(4.0, 24.0)
+        .toDouble();
 
     for (var groupIndex = 0; groupIndex < groups.length; groupIndex++) {
       final group = groups[groupIndex];
       final groupStart = left + groupIndex * groupWidth;
-      final barsStart =
-          groupStart + (groupWidth - (barWidth * visibleActivities.length) -
+      final barsStart = groupStart +
+          (groupWidth -
+                  (barWidth * visibleActivities.length) -
                   barGap * (visibleActivities.length - 1)) /
               2;
 

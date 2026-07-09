@@ -110,10 +110,68 @@ List<QueryDocumentSnapshot<Map<String, dynamic>>> _sortActivitiesByProximity(
     final bPast = bDay.isBefore(normalizedToday);
 
     if (aPast != bPast) return aPast ? 1 : -1;
+    if (aPast && bPast) return bDay.compareTo(aDay);
     return aDay.compareTo(bDay);
   });
 
   return sorted;
+}
+
+bool _matchesActivityDateRange(dynamic value, String range) {
+  if (range == 'todos') return true;
+
+  final date = _extractDate(value);
+  if (date == null) return false;
+
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final target = DateTime(date.year, date.month, date.day);
+  final yesterday = today.subtract(const Duration(days: 1));
+
+  switch (range) {
+    case 'proximas':
+      return !target.isBefore(today);
+    case 'hoy':
+      return target == today;
+    case 'ayer':
+      return target == yesterday;
+    case 'pasadas':
+      return target.isBefore(today);
+    default:
+      return true;
+  }
+}
+
+String _activityDateRangeLabel(String range) {
+  switch (range) {
+    case 'proximas':
+      return 'Próximas';
+    case 'hoy':
+      return 'Hoy';
+    case 'ayer':
+      return 'Ayer';
+    case 'pasadas':
+      return 'Pasadas';
+    case 'todos':
+    default:
+      return 'Todas';
+  }
+}
+
+IconData _activityDateRangeIcon(String range) {
+  switch (range) {
+    case 'proximas':
+      return Icons.upcoming_outlined;
+    case 'hoy':
+      return Icons.today_outlined;
+    case 'ayer':
+      return Icons.history_toggle_off_outlined;
+    case 'pasadas':
+      return Icons.history_outlined;
+    case 'todos':
+    default:
+      return Icons.event_note_outlined;
+  }
 }
 
 String _formatRelativeActivityDate(dynamic value) {
@@ -185,6 +243,20 @@ List<List<T>> _chunkList<T>(List<T> items, int size) {
 }
 
 String _boolToSiNo(dynamic value) => value == true ? 'SI' : 'NO';
+
+String _leaderDisplayName(
+  Map<String, dynamic> data,
+  Map<String, String> leaderNames,
+) {
+  final leaderId = safeString(data, 'leaderId').trim();
+  final leaderName = leaderId.isEmpty ? '' : leaderNames[leaderId]?.trim();
+  if (leaderName != null && leaderName.isNotEmpty) return leaderName;
+
+  final storedName = safeString(data, 'leaderName').trim();
+  if (storedName.isNotEmpty) return storedName;
+
+  return leaderId.isEmpty ? 'Sin líder' : 'Líder no encontrado';
+}
 
 void _downloadBytes(Uint8List bytes, String filename) {
   if (!kIsWeb) return;
@@ -3180,6 +3252,10 @@ Future<void> _migrateLeaderReferences({
 }) async {
   if (fromLeaderId == toLeaderId) return;
 
+  final targetLeaderSnap = await db.collection('leaders').doc(toLeaderId).get();
+  final targetLeaderName =
+      safeString(targetLeaderSnap.data() ?? {}, 'name').trim();
+
   const collections = ['registros', 'reportes', 'jovenes', 'asistencias'];
   for (final collection in collections) {
     final snap = await db
@@ -3190,7 +3266,11 @@ Future<void> _migrateLeaderReferences({
     for (final chunk in _chunkList(snap.docs, 450)) {
       final batch = db.batch();
       for (final doc in chunk) {
-        batch.update(doc.reference, {'leaderId': toLeaderId});
+        final payload = <String, dynamic>{'leaderId': toLeaderId};
+        if (collection == 'jovenes' && targetLeaderName.isNotEmpty) {
+          payload['leaderName'] = targetLeaderName;
+        }
+        batch.update(doc.reference, payload);
       }
       await batch.commit();
     }
@@ -3862,6 +3942,7 @@ class JovenesPage extends StatefulWidget {
 
 class _JovenesPageState extends State<JovenesPage> {
   String search = '';
+  final Set<String> _leaderNameBackfillQueued = {};
 
   Query<Map<String, dynamic>> _query() {
     final base = db.collection('jovenes');
@@ -3874,6 +3955,73 @@ class _JovenesPageState extends State<JovenesPage> {
         .orderBy('createdAt', descending: true);
   }
 
+  Stream<Map<String, String>> _leaderNamesStream() {
+    if (!isAdmin(widget.leader.role)) {
+      return Stream.value({widget.currentUser.uid: widget.leader.name});
+    }
+
+    return db.collection('leaders').snapshots().map((snap) {
+      return {
+        for (final doc in snap.docs)
+          doc.id: safeString(doc.data(), 'name', 'Sin nombre'),
+      };
+    });
+  }
+
+  Future<Map<String, String>> _loadLeaderNamesForExport() async {
+    if (!isAdmin(widget.leader.role)) {
+      return {widget.currentUser.uid: widget.leader.name};
+    }
+
+    final snap = await db.collection('leaders').get();
+    return {
+      for (final doc in snap.docs)
+        doc.id: safeString(doc.data(), 'name', 'Sin nombre'),
+    };
+  }
+
+  void _backfillLeaderNames(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+    Map<String, String> leaderNames,
+  ) {
+    final updates = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+
+    for (final doc in docs) {
+      final data = doc.data();
+      final leaderId = safeString(data, 'leaderId').trim();
+      final leaderName = leaderNames[leaderId]?.trim();
+      if (leaderId.isEmpty || leaderName == null || leaderName.isEmpty) {
+        continue;
+      }
+
+      if (safeString(data, 'leaderName').trim() == leaderName) continue;
+      if (!_leaderNameBackfillQueued.add(doc.id)) continue;
+
+      updates.add(doc);
+    }
+
+    if (updates.isEmpty) return;
+
+    Future<void>(() async {
+      try {
+        for (final chunk in _chunkList(updates, 450)) {
+          final batch = db.batch();
+          for (final doc in chunk) {
+            final leaderId = safeString(doc.data(), 'leaderId').trim();
+            final leaderName = leaderNames[leaderId]?.trim();
+            if (leaderName == null || leaderName.isEmpty) continue;
+            batch.update(doc.reference, {'leaderName': leaderName});
+          }
+          await batch.commit();
+        }
+      } finally {
+        _leaderNameBackfillQueued.removeAll(updates.map((doc) => doc.id));
+      }
+    }).catchError((Object error) {
+      debugPrint('No se pudo actualizar leaderName en jóvenes: $error');
+    });
+  }
+
   Future<void> _exportJovenesXlsx({String? leaderId}) async {
     Query<Map<String, dynamic>> query = db.collection('jovenes');
 
@@ -3884,6 +4032,7 @@ class _JovenesPageState extends State<JovenesPage> {
     }
 
     final snap = await query.get();
+    final leaderNames = await _loadLeaderNamesForExport();
 
     final excel = Excel.createExcel();
     final sheet = excel['Jovenes'];
@@ -3898,6 +4047,7 @@ class _JovenesPageState extends State<JovenesPage> {
       'Clase Maestro',
       'Clase Liderazgo',
       'Bautismo',
+      'Líder',
       'LeaderId',
     ];
 
@@ -3920,6 +4070,7 @@ class _JovenesPageState extends State<JovenesPage> {
         _boolToSiNo(d['claseMaestro']),
         _boolToSiNo(d['claseLiderazgo']),
         _boolToSiNo(d['bautismo']),
+        _leaderDisplayName(d, leaderNames),
         safeString(d, 'leaderId'),
       ];
 
@@ -3986,6 +4137,7 @@ class _JovenesPageState extends State<JovenesPage> {
                   onPressed: () => _showJovenDialog(
                     context,
                     currentUser: widget.currentUser,
+                    currentLeader: widget.leader,
                   ),
                   icon: const Icon(Icons.add),
                   label: const Text('Nuevo joven'),
@@ -3997,151 +4149,131 @@ class _JovenesPageState extends State<JovenesPage> {
         const SizedBox(height: 14),
         Expanded(
           child: Card(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _query().snapshots(),
-              builder: (context, snap) {
-                if (!snap.hasData) {
+            child: StreamBuilder<Map<String, String>>(
+              stream: _leaderNamesStream(),
+              builder: (context, leaderSnap) {
+                if (!leaderSnap.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                var docs = snap.data!.docs;
-                if (search.isNotEmpty) {
-                  docs = docs.where((d) {
-                    final name = safeString(d.data(), 'nombre').toLowerCase();
-                    return name.contains(search);
-                  }).toList();
-                }
+                final leaderNames = leaderSnap.data!;
 
-                if (docs.isEmpty) {
-                  return const Center(child: Text('No hay jóvenes.'));
-                }
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _query().snapshots(),
+                  builder: (context, snap) {
+                    if (!snap.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                if (!mobile) {
-                  return _JovenesDataTable(
-                    docs: docs,
-                    isAdminUser: isAdmin(widget.leader.role),
-                    onHistory: (id, data) => _openHistory(context, id, data),
-                    onExportLeader: (leaderId) =>
-                        _exportJovenesXlsx(leaderId: leaderId),
-                    onEdit: (id, data) => _showJovenDialog(
-                      context,
-                      currentUser: widget.currentUser,
-                      docId: id,
-                      initial: data,
-                    ),
-                    onDelete: (id) => _deleteDoc('jovenes', id, context),
-                  );
-                }
+                    var docs = snap.data!.docs;
+                    _backfillLeaderNames(docs, leaderNames);
 
-                return ListView.separated(
-                  padding: const EdgeInsets.all(14),
-                  itemCount: docs.length,
-                  separatorBuilder: (_, __) => const Divider(height: 22),
-                  itemBuilder: (context, index) {
-                    final d = docs[index];
-                    final data = d.data();
+                    if (search.isNotEmpty) {
+                      docs = docs.where((d) {
+                        final data = d.data();
+                        final name = safeString(data, 'nombre').toLowerCase();
+                        final leaderName =
+                            _leaderDisplayName(data, leaderNames).toLowerCase();
+                        return name.contains(search) ||
+                            leaderName.contains(search);
+                      }).toList();
+                    }
 
-                    if (mobile) {
-                      return Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                safeString(data, 'nombre'),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Edad: ${safeString(data, "edad")} · Tel: ${safeString(data, "telefono")}',
-                              ),
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 4,
-                                runSpacing: 4,
-                                children: [
-                                  _ActionIcon(
-                                    icon: Icons.history,
-                                    tooltip: 'Historial',
-                                    onTap: () =>
-                                        _openHistory(context, d.id, data),
-                                  ),
-                                  if (isAdmin(widget.leader.role))
-                                    _ActionIcon(
-                                      icon: Icons.file_download_outlined,
-                                      tooltip: 'Exportar por líder',
-                                      onTap: () => _exportJovenesXlsx(
-                                        leaderId: safeString(data, 'leaderId'),
-                                      ),
-                                    ),
-                                  _ActionIcon(
-                                    icon: Icons.edit_outlined,
-                                    tooltip: 'Editar',
-                                    onTap: () => _showJovenDialog(
-                                      context,
-                                      currentUser: widget.currentUser,
-                                      docId: d.id,
-                                      initial: data,
-                                    ),
-                                  ),
-                                  _ActionIcon(
-                                    icon: Icons.delete_outline,
-                                    tooltip: 'Eliminar',
-                                    onTap: () =>
-                                        _deleteDoc('jovenes', d.id, context),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
+                    if (docs.isEmpty) {
+                      return const Center(child: Text('No hay jóvenes.'));
+                    }
+
+                    if (!mobile) {
+                      return _JovenesDataTable(
+                        docs: docs,
+                        leaderNames: leaderNames,
+                        isAdminUser: isAdmin(widget.leader.role),
+                        onHistory: (id, data) =>
+                            _openHistory(context, id, data),
+                        onExportLeader: (leaderId) =>
+                            _exportJovenesXlsx(leaderId: leaderId),
+                        onEdit: (id, data) => _showJovenDialog(
+                          context,
+                          currentUser: widget.currentUser,
+                          currentLeader: widget.leader,
+                          docId: id,
+                          initial: data,
                         ),
+                        onDelete: (id) => _deleteDoc('jovenes', id, context),
                       );
                     }
 
-                    return ListTile(
-                      title: Text(
-                        safeString(data, 'nombre'),
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      subtitle: Text(
-                        'Edad: ${safeString(data, "edad")} · Tel: ${safeString(data, "telefono")}',
-                      ),
-                      trailing: Wrap(
-                        spacing: 8,
-                        children: [
-                          IconButton(
-                            tooltip: 'Historial',
-                            onPressed: () => _openHistory(context, d.id, data),
-                            icon: const Icon(Icons.history),
-                          ),
-                          if (isAdmin(widget.leader.role))
-                            IconButton(
-                              tooltip: 'Exportar por líder',
-                              onPressed: () => _exportJovenesXlsx(
-                                leaderId: safeString(data, 'leaderId'),
-                              ),
-                              icon: const Icon(Icons.file_download_outlined),
+                    return ListView.separated(
+                      padding: const EdgeInsets.all(14),
+                      itemCount: docs.length,
+                      separatorBuilder: (_, __) => const Divider(height: 22),
+                      itemBuilder: (context, index) {
+                        final d = docs[index];
+                        final data = d.data();
+                        final leaderName =
+                            _leaderDisplayName(data, leaderNames);
+
+                        return Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  safeString(data, 'nombre'),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Líder: $leaderName · Edad: ${safeString(data, "edad")} · Tel: ${safeString(data, "telefono")}',
+                                ),
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 4,
+                                  runSpacing: 4,
+                                  children: [
+                                    _ActionIcon(
+                                      icon: Icons.history,
+                                      tooltip: 'Historial',
+                                      onTap: () =>
+                                          _openHistory(context, d.id, data),
+                                    ),
+                                    if (isAdmin(widget.leader.role))
+                                      _ActionIcon(
+                                        icon: Icons.file_download_outlined,
+                                        tooltip: 'Exportar por líder',
+                                        onTap: () => _exportJovenesXlsx(
+                                          leaderId:
+                                              safeString(data, 'leaderId'),
+                                        ),
+                                      ),
+                                    _ActionIcon(
+                                      icon: Icons.edit_outlined,
+                                      tooltip: 'Editar',
+                                      onTap: () => _showJovenDialog(
+                                        context,
+                                        currentUser: widget.currentUser,
+                                        currentLeader: widget.leader,
+                                        docId: d.id,
+                                        initial: data,
+                                      ),
+                                    ),
+                                    _ActionIcon(
+                                      icon: Icons.delete_outline,
+                                      tooltip: 'Eliminar',
+                                      onTap: () =>
+                                          _deleteDoc('jovenes', d.id, context),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                          IconButton(
-                            onPressed: () => _showJovenDialog(
-                              context,
-                              currentUser: widget.currentUser,
-                              docId: d.id,
-                              initial: data,
-                            ),
-                            icon: const Icon(Icons.edit_outlined),
                           ),
-                          IconButton(
-                            onPressed: () =>
-                                _deleteDoc('jovenes', d.id, context),
-                            icon: const Icon(Icons.delete_outline),
-                          ),
-                        ],
-                      ),
+                        );
+                      },
                     );
                   },
                 );
@@ -4171,6 +4303,7 @@ class _JovenesPageState extends State<JovenesPage> {
 
 class _JovenesDataTable extends StatelessWidget {
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+  final Map<String, String> leaderNames;
   final bool isAdminUser;
   final void Function(String id, Map<String, dynamic> data) onHistory;
   final void Function(String leaderId) onExportLeader;
@@ -4179,6 +4312,7 @@ class _JovenesDataTable extends StatelessWidget {
 
   const _JovenesDataTable({
     required this.docs,
+    required this.leaderNames,
     required this.isAdminUser,
     required this.onHistory,
     required this.onExportLeader,
@@ -4197,6 +4331,7 @@ class _JovenesDataTable extends StatelessWidget {
             columnSpacing: 28,
             columns: const [
               DataColumn(label: Text('Nombre')),
+              DataColumn(label: Text('Líder')),
               DataColumn(label: Text('Edad')),
               DataColumn(label: Text('Teléfono')),
               DataColumn(label: Text('Formación')),
@@ -4212,6 +4347,12 @@ class _JovenesDataTable extends StatelessWidget {
                       safeString(data, 'nombre', 'Sin nombre'),
                       width: 260,
                       strong: true,
+                    ),
+                  ),
+                  DataCell(
+                    _TableText(
+                      _leaderDisplayName(data, leaderNames),
+                      width: 200,
                     ),
                   ),
                   DataCell(_TableText(safeString(data, 'edad'), width: 80)),
@@ -4298,6 +4439,7 @@ class _ActionIcon extends StatelessWidget {
 Future<void> _showJovenDialog(
   BuildContext context, {
   required User currentUser,
+  required LeaderProfile currentLeader,
   String? docId,
   Map<String, dynamic>? initial,
 }) async {
@@ -4415,6 +4557,24 @@ Future<void> _showJovenDialog(
               onPressed: () async {
                 if (!(formKey.currentState?.validate() ?? false)) return;
 
+                final storedLeaderId =
+                    safeString(initial ?? {}, 'leaderId', currentUser.uid)
+                        .trim();
+                final leaderId =
+                    storedLeaderId.isEmpty ? currentUser.uid : storedLeaderId;
+                var leaderName = leaderId == currentLeader.uid
+                    ? currentLeader.name
+                    : safeString(initial ?? {}, 'leaderName').trim();
+                if (leaderName.isEmpty) {
+                  final leaderDoc =
+                      await db.collection('leaders').doc(leaderId).get();
+                  leaderName = safeString(
+                    leaderDoc.data() ?? {},
+                    'name',
+                    'Sin líder',
+                  );
+                }
+
                 final payload = {
                   'nombre': nombreCtrl.text.trim(),
                   'edad': int.tryParse(edadCtrl.text.trim()) ?? 0,
@@ -4425,7 +4585,8 @@ Future<void> _showJovenDialog(
                   'claseMaestro': claseMaestro,
                   'claseLiderazgo': claseLiderazgo,
                   'bautismo': bautismo,
-                  'leaderId': initial?['leaderId'] ?? currentUser.uid,
+                  'leaderId': leaderId,
+                  'leaderName': leaderName,
                   'createdAt':
                       initial?['createdAt'] ?? FieldValue.serverTimestamp(),
                   'updatedAt': FieldValue.serverTimestamp(),
@@ -4708,10 +4869,19 @@ class ActividadesPage extends StatefulWidget {
 }
 
 class _ActividadesPageState extends State<ActividadesPage> {
+  static const _dateRangeFilters = [
+    'todos',
+    'proximas',
+    'hoy',
+    'ayer',
+    'pasadas',
+  ];
+
   String? selectedLeaderId;
   String? selectedZone;
   String search = '';
   String selectedStatus = 'todos';
+  String selectedDateRange = 'todos';
 
   Query<Map<String, dynamic>> _activitiesQuery() {
     return db.collection('actividades');
@@ -4742,7 +4912,9 @@ class _ActividadesPageState extends State<ActividadesPage> {
           final status = safeString(data, 'estado', 'programada');
           final matchesStatus =
               selectedStatus == 'todos' || status == selectedStatus;
-          return matchesSearch && matchesStatus;
+          final matchesDateRange =
+              _matchesActivityDateRange(data['fecha'], selectedDateRange);
+          return matchesSearch && matchesStatus && matchesDateRange;
         }).toList();
 
         final now = DateTime.now();
@@ -4862,6 +5034,31 @@ class _ActividadesPageState extends State<ActividadesPage> {
                         setState(() => selectedStatus = value ?? 'todos'),
                   ),
                 ),
+                SizedBox(
+                  width: mobile ? double.infinity : 220,
+                  child: DropdownButtonFormField<String>(
+                    value: selectedDateRange,
+                    decoration: const InputDecoration(
+                      labelText: 'Fecha',
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'todos', child: Text('Todas')),
+                      DropdownMenuItem(
+                        value: 'proximas',
+                        child: Text('Próximas'),
+                      ),
+                      DropdownMenuItem(value: 'hoy', child: Text('Hoy')),
+                      DropdownMenuItem(value: 'ayer', child: Text('Ayer')),
+                      DropdownMenuItem(
+                        value: 'pasadas',
+                        child: Text('Pasadas'),
+                      ),
+                    ],
+                    onChanged: (value) => setState(
+                      () => selectedDateRange = value ?? 'todos',
+                    ),
+                  ),
+                ),
                 if (isAdmin(widget.leader.role))
                   FilledButton.icon(
                     onPressed: () => _showActividadDialog(context),
@@ -4892,10 +5089,40 @@ class _ActividadesPageState extends State<ActividadesPage> {
                         'Estado: ${_activityStatusLabel(selectedStatus)}',
                       ),
                     ),
+                  if (selectedDateRange != 'todos')
+                    Chip(
+                      avatar:
+                          const Icon(Icons.calendar_today_outlined, size: 18),
+                      label: Text(
+                        'Fecha: ${_activityDateRangeLabel(selectedDateRange)}',
+                      ),
+                    ),
                   if (search.isNotEmpty)
                     const Chip(
                       avatar: Icon(Icons.search, size: 18),
                       label: Text('Búsqueda aplicada'),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final range in _dateRangeFilters)
+                    FilterChip(
+                      avatar: Icon(
+                        _activityDateRangeIcon(range),
+                        size: 18,
+                      ),
+                      label: Text(_activityDateRangeLabel(range)),
+                      selected: selectedDateRange == range,
+                      onSelected: (_) => setState(
+                        () => selectedDateRange = range,
+                      ),
                     ),
                 ],
               ),
@@ -5013,7 +5240,7 @@ class _ActividadesPageState extends State<ActividadesPage> {
                         child: Text(
                           docs.isEmpty
                               ? 'No hay actividades.'
-                              : 'No hay actividades que coincidan con la búsqueda o el estado seleccionado.',
+                              : 'No hay actividades que coincidan con la búsqueda, el estado o la fecha seleccionada.',
                         ),
                       ),
                     )
