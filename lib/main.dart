@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:excel/excel.dart' hide Border, TextDirection, TextSpan;
+import 'package:excel/excel.dart' hide Border, TextSpan;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import 'package:universal_html/html.dart' as html;
 
 import 'app_theme.dart';
+import 'attendance_export.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -46,6 +47,11 @@ String safeString(Map<String, dynamic> data, String key,
   final value = data[key];
   if (value == null) return fallback;
   return value.toString();
+}
+
+String _phoneDisplay(Map<String, dynamic> data) {
+  final phone = safeString(data, 'telefono').trim();
+  return phone.isEmpty ? 'Sin teléfono' : phone;
 }
 
 bool safeBool(Map<String, dynamic> data, String key, [bool fallback = false]) {
@@ -110,68 +116,10 @@ List<QueryDocumentSnapshot<Map<String, dynamic>>> _sortActivitiesByProximity(
     final bPast = bDay.isBefore(normalizedToday);
 
     if (aPast != bPast) return aPast ? 1 : -1;
-    if (aPast && bPast) return bDay.compareTo(aDay);
     return aDay.compareTo(bDay);
   });
 
   return sorted;
-}
-
-bool _matchesActivityDateRange(dynamic value, String range) {
-  if (range == 'todos') return true;
-
-  final date = _extractDate(value);
-  if (date == null) return false;
-
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
-  final target = DateTime(date.year, date.month, date.day);
-  final yesterday = today.subtract(const Duration(days: 1));
-
-  switch (range) {
-    case 'proximas':
-      return !target.isBefore(today);
-    case 'hoy':
-      return target == today;
-    case 'ayer':
-      return target == yesterday;
-    case 'pasadas':
-      return target.isBefore(today);
-    default:
-      return true;
-  }
-}
-
-String _activityDateRangeLabel(String range) {
-  switch (range) {
-    case 'proximas':
-      return 'Próximas';
-    case 'hoy':
-      return 'Hoy';
-    case 'ayer':
-      return 'Ayer';
-    case 'pasadas':
-      return 'Pasadas';
-    case 'todos':
-    default:
-      return 'Todas';
-  }
-}
-
-IconData _activityDateRangeIcon(String range) {
-  switch (range) {
-    case 'proximas':
-      return Icons.upcoming_outlined;
-    case 'hoy':
-      return Icons.today_outlined;
-    case 'ayer':
-      return Icons.history_toggle_off_outlined;
-    case 'pasadas':
-      return Icons.history_outlined;
-    case 'todos':
-    default:
-      return Icons.event_note_outlined;
-  }
 }
 
 String _formatRelativeActivityDate(dynamic value) {
@@ -4228,7 +4176,7 @@ class _JovenesPageState extends State<JovenesPage> {
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  'Líder: $leaderName · Edad: ${safeString(data, "edad")} · Tel: ${safeString(data, "telefono")}',
+                                  'Líder: $leaderName · Edad: ${safeString(data, "edad")} · ${_phoneDisplay(data)}',
                                 ),
                                 const SizedBox(height: 10),
                                 Wrap(
@@ -4357,7 +4305,7 @@ class _JovenesDataTable extends StatelessWidget {
                   ),
                   DataCell(_TableText(safeString(data, 'edad'), width: 80)),
                   DataCell(
-                    _TableText(safeString(data, 'telefono'), width: 150),
+                    _TableText(_phoneDisplay(data), width: 150),
                   ),
                   DataCell(_TableText(_formationSummary(data), width: 300)),
                   DataCell(
@@ -4512,10 +4460,8 @@ Future<void> _showJovenDialog(
                       controller: telCtrl,
                       keyboardType: TextInputType.phone,
                       decoration: const InputDecoration(
-                        labelText: 'Número de teléfono',
+                        labelText: 'Número de teléfono (opcional)',
                       ),
-                      validator: (v) =>
-                          (v ?? '').trim().isEmpty ? 'Requerido.' : null,
                     ),
                     const SizedBox(height: 10),
                     SwitchListTile(
@@ -4669,7 +4615,7 @@ class HistorialJovenPage extends StatelessWidget {
                     Text(
                       'Fecha de nacimiento: ${_formatAnyDate(jovenData["fechaNacimiento"])}',
                     ),
-                    Text('Teléfono: ${safeString(jovenData, "telefono")}'),
+                    Text('Teléfono: ${_phoneDisplay(jovenData)}'),
                     const SizedBox(height: 16),
                     Wrap(
                       spacing: 8,
@@ -4869,19 +4815,20 @@ class ActividadesPage extends StatefulWidget {
 }
 
 class _ActividadesPageState extends State<ActividadesPage> {
-  static const _dateRangeFilters = [
-    'todos',
-    'proximas',
-    'hoy',
-    'ayer',
-    'pasadas',
-  ];
-
   String? selectedLeaderId;
   String? selectedZone;
   String search = '';
   String selectedStatus = 'todos';
-  String selectedDateRange = 'todos';
+  String selectedPeriod = 'todas';
+  Future<QuerySnapshot<Map<String, dynamic>>>? _leadersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    if (isAdmin(widget.leader.role)) {
+      _leadersFuture = db.collection('leaders').get();
+    }
+  }
 
   Query<Map<String, dynamic>> _activitiesQuery() {
     return db.collection('actividades');
@@ -4904,19 +4851,6 @@ class _ActividadesPageState extends State<ActividadesPage> {
         }
 
         final docs = _sortActivitiesByProximity(snap.data!.docs);
-        final filteredDocs = docs.where((doc) {
-          final data = doc.data();
-          final matchesSearch = search.isEmpty ||
-              safeString(data, 'nombre').toLowerCase().contains(search) ||
-              safeString(data, 'descripcion').toLowerCase().contains(search);
-          final status = safeString(data, 'estado', 'programada');
-          final matchesStatus =
-              selectedStatus == 'todos' || status == selectedStatus;
-          final matchesDateRange =
-              _matchesActivityDateRange(data['fecha'], selectedDateRange);
-          return matchesSearch && matchesStatus && matchesDateRange;
-        }).toList();
-
         final now = DateTime.now();
         final today = DateTime(now.year, now.month, now.day);
         final upcomingDocs = docs.where((doc) {
@@ -4925,17 +4859,37 @@ class _ActividadesPageState extends State<ActividadesPage> {
           final normalized = DateTime(date.year, date.month, date.day);
           return !normalized.isBefore(today);
         }).toList();
+        final pastDocs = docs.where((doc) {
+          final date = _extractDate(doc.data()['fecha']);
+          if (date == null) return false;
+          final normalized = DateTime(date.year, date.month, date.day);
+          return normalized.isBefore(today);
+        }).toList();
+        final filteredDocs = docs.where((doc) {
+          final data = doc.data();
+          final matchesSearch = search.isEmpty ||
+              safeString(data, 'nombre').toLowerCase().contains(search) ||
+              safeString(data, 'descripcion').toLowerCase().contains(search);
+          final status = safeString(data, 'estado', 'programada');
+          final matchesStatus =
+              selectedStatus == 'todos' || status == selectedStatus;
+          final date = _extractDate(data['fecha']);
+          final normalized =
+              date == null ? null : DateTime(date.year, date.month, date.day);
+          final matchesPeriod = selectedPeriod == 'todas' ||
+              (selectedPeriod == 'proximas' &&
+                  normalized != null &&
+                  !normalized.isBefore(today)) ||
+              (selectedPeriod == 'pasadas' &&
+                  normalized != null &&
+                  normalized.isBefore(today));
+          return matchesSearch && matchesStatus && matchesPeriod;
+        }).toList();
         final nextActivity = upcomingDocs.isEmpty ? null : upcomingDocs.first;
 
         final total = docs.length;
         final activas = docs
             .where((e) => safeString(e.data(), 'estado') == 'activa')
-            .length;
-        final programadas = docs
-            .where((e) => safeString(e.data(), 'estado') == 'programada')
-            .length;
-        final cerradas = docs
-            .where((e) => safeString(e.data(), 'estado') == 'cerrada')
             .length;
 
         return ListView(
@@ -4947,7 +4901,7 @@ class _ActividadesPageState extends State<ActividadesPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Agenda y asistencia',
+                      'Actividades y asistencia',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w900,
@@ -4955,7 +4909,7 @@ class _ActividadesPageState extends State<ActividadesPage> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Prioriza la próxima actividad y abre el pase de asistencia desde la lista.',
+                      'Consulta próximas actividades o recupera cualquier fecha pasada por año y mes.',
                       style: TextStyle(color: Color(0xFF6B7280)),
                     ),
                     const SizedBox(height: 16),
@@ -4979,14 +4933,14 @@ class _ActividadesPageState extends State<ActividadesPage> {
                           color: const Color(0xFF059669),
                         ),
                         _MiniStatCard(
-                          label: 'Programadas',
-                          value: '$programadas',
+                          label: 'Próximas',
+                          value: '${upcomingDocs.length}',
                           color: const Color(0xFF2563EB),
                         ),
                         _MiniStatCard(
-                          label: 'Cerradas',
-                          value: '$cerradas',
-                          color: const Color(0xFF6B7280),
+                          label: 'Pasadas',
+                          value: '${pastDocs.length}',
+                          color: const Color(0xFFB45309),
                         ),
                       ],
                     ),
@@ -5034,30 +4988,29 @@ class _ActividadesPageState extends State<ActividadesPage> {
                         setState(() => selectedStatus = value ?? 'todos'),
                   ),
                 ),
-                SizedBox(
-                  width: mobile ? double.infinity : 220,
-                  child: DropdownButtonFormField<String>(
-                    value: selectedDateRange,
-                    decoration: const InputDecoration(
-                      labelText: 'Fecha',
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'todos', child: Text('Todas')),
-                      DropdownMenuItem(
-                        value: 'proximas',
-                        child: Text('Próximas'),
-                      ),
-                      DropdownMenuItem(value: 'hoy', child: Text('Hoy')),
-                      DropdownMenuItem(value: 'ayer', child: Text('Ayer')),
-                      DropdownMenuItem(
-                        value: 'pasadas',
-                        child: Text('Pasadas'),
-                      ),
-                    ],
-                    onChanged: (value) => setState(
-                      () => selectedDateRange = value ?? 'todos',
-                    ),
-                  ),
+                OutlinedButton.icon(
+                  onPressed: docs.isEmpty
+                      ? null
+                      : () => showAttendanceExportDialog(
+                            context: context,
+                            firestore: db,
+                            activities: docs
+                                .map(
+                                  (doc) => AttendanceExportActivity(
+                                    id: doc.id,
+                                    data: doc.data(),
+                                  ),
+                                )
+                                .toList(),
+                            user: AttendanceExportUser(
+                              uid: widget.currentUser.uid,
+                              name: widget.leader.name,
+                              role: widget.leader.role,
+                              zone: widget.leader.zone,
+                            ),
+                          ),
+                  icon: const Icon(Icons.table_view_outlined),
+                  label: const Text('Exportar asistencia'),
                 ),
                 if (isAdmin(widget.leader.role))
                   FilledButton.icon(
@@ -5074,34 +5027,29 @@ class _ActividadesPageState extends State<ActividadesPage> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  Chip(
-                    avatar: const Icon(Icons.view_list_outlined, size: 18),
-                    label: Text('${filteredDocs.length} visibles'),
+                  ChoiceChip(
+                    selected: selectedPeriod == 'todas',
+                    avatar: const Icon(
+                      Icons.calendar_view_month_outlined,
+                      size: 18,
+                    ),
+                    label: Text('Todas · $total'),
+                    onSelected: (_) => setState(() => selectedPeriod = 'todas'),
                   ),
-                  const Chip(
-                    avatar: Icon(Icons.trending_up, size: 18),
-                    label: Text('Ordenadas por cercanía'),
+                  ChoiceChip(
+                    selected: selectedPeriod == 'proximas',
+                    avatar: const Icon(Icons.upcoming_outlined, size: 18),
+                    label: Text('Próximas · ${upcomingDocs.length}'),
+                    onSelected: (_) =>
+                        setState(() => selectedPeriod = 'proximas'),
                   ),
-                  if (selectedStatus != 'todos')
-                    Chip(
-                      avatar: const Icon(Icons.filter_alt_outlined, size: 18),
-                      label: Text(
-                        'Estado: ${_activityStatusLabel(selectedStatus)}',
-                      ),
-                    ),
-                  if (selectedDateRange != 'todos')
-                    Chip(
-                      avatar:
-                          const Icon(Icons.calendar_today_outlined, size: 18),
-                      label: Text(
-                        'Fecha: ${_activityDateRangeLabel(selectedDateRange)}',
-                      ),
-                    ),
-                  if (search.isNotEmpty)
-                    const Chip(
-                      avatar: Icon(Icons.search, size: 18),
-                      label: Text('Búsqueda aplicada'),
-                    ),
+                  ChoiceChip(
+                    selected: selectedPeriod == 'pasadas',
+                    avatar: const Icon(Icons.history, size: 18),
+                    label: Text('Pasadas · ${pastDocs.length}'),
+                    onSelected: (_) =>
+                        setState(() => selectedPeriod = 'pasadas'),
+                  ),
                 ],
               ),
             ),
@@ -5112,17 +5060,29 @@ class _ActividadesPageState extends State<ActividadesPage> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  for (final range in _dateRangeFilters)
-                    FilterChip(
-                      avatar: Icon(
-                        _activityDateRangeIcon(range),
-                        size: 18,
+                  Chip(
+                    avatar: const Icon(Icons.view_list_outlined, size: 18),
+                    label: Text('${filteredDocs.length} visibles'),
+                  ),
+                  Chip(
+                    avatar: const Icon(Icons.sort_outlined, size: 18),
+                    label: Text(
+                      selectedPeriod == 'proximas'
+                          ? 'Más cercana a más lejana'
+                          : 'Más reciente a más antigua',
+                    ),
+                  ),
+                  if (selectedStatus != 'todos')
+                    Chip(
+                      avatar: const Icon(Icons.filter_alt_outlined, size: 18),
+                      label: Text(
+                        'Estado: ${_activityStatusLabel(selectedStatus)}',
                       ),
-                      label: Text(_activityDateRangeLabel(range)),
-                      selected: selectedDateRange == range,
-                      onSelected: (_) => setState(
-                        () => selectedDateRange = range,
-                      ),
+                    ),
+                  if (search.isNotEmpty)
+                    const Chip(
+                      avatar: Icon(Icons.search, size: 18),
+                      label: Text('Búsqueda aplicada'),
                     ),
                 ],
               ),
@@ -5130,7 +5090,7 @@ class _ActividadesPageState extends State<ActividadesPage> {
             if (isAdmin(widget.leader.role)) ...[
               const SizedBox(height: 14),
               FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                future: db.collection('leaders').get(),
+                future: _leadersFuture,
                 builder: (context, leaderSnap) {
                   final leaders = leaderSnap.data?.docs ?? [];
                   return Card(
@@ -5233,41 +5193,242 @@ class _ActividadesPageState extends State<ActividadesPage> {
             ],
             const SizedBox(height: 14),
             Card(
-              child: filteredDocs.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Center(
-                        child: Text(
-                          docs.isEmpty
-                              ? 'No hay actividades.'
-                              : 'No hay actividades que coincidan con la búsqueda, el estado o la fecha seleccionada.',
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const ListTile(
+                      contentPadding: EdgeInsets.symmetric(horizontal: 4),
+                      leading: CircleAvatar(
+                        backgroundColor: Color(0xFFEDEBFF),
+                        child: Icon(
+                          Icons.calendar_month_outlined,
+                          color: Color(0xFF4F46E5),
                         ),
                       ),
-                    )
-                  : Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        children: [
-                          for (var index = 0;
-                              index < filteredDocs.length;
-                              index++) ...[
-                            _buildActivityItem(
-                              context,
-                              filteredDocs[index],
-                              nextActivity?.id == filteredDocs[index].id,
-                              mobile,
-                            ),
-                            if (index != filteredDocs.length - 1)
-                              const Divider(height: 24),
-                          ],
-                        ],
+                      title: Text(
+                        'Calendario de actividades',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Abre un año, luego un mes y selecciona la actividad para registrar asistencia.',
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    if (filteredDocs.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 30),
+                        child: Center(
+                          child: Text(
+                            docs.isEmpty
+                                ? 'No hay actividades registradas.'
+                                : 'No hay actividades para los filtros seleccionados.',
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      )
+                    else
+                      _buildActivityArchive(
+                        context,
+                        filteredDocs,
+                        nextActivity?.id,
+                        mobile,
+                      ),
+                  ],
+                ),
+              ),
             ),
           ],
         );
       },
     );
+  }
+
+  Widget _buildActivityArchive(
+    BuildContext context,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> activities,
+    String? nextActivityId,
+    bool mobile,
+  ) {
+    final nearestFirst = selectedPeriod == 'proximas';
+    final sorted = activities.toList()
+      ..sort((a, b) {
+        final aDate = _extractDate(a.data()['fecha']);
+        final bDate = _extractDate(b.data()['fecha']);
+        if (aDate == null && bDate == null) {
+          return safeString(a.data(), 'nombre')
+              .compareTo(safeString(b.data(), 'nombre'));
+        }
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        final dateComparison =
+            nearestFirst ? aDate.compareTo(bDate) : bDate.compareTo(aDate);
+        if (dateComparison != 0) return dateComparison;
+        return safeString(a.data(), 'nombre')
+            .compareTo(safeString(b.data(), 'nombre'));
+      });
+
+    final grouped =
+        <int, Map<int, List<QueryDocumentSnapshot<Map<String, dynamic>>>>>{};
+    for (final activity in sorted) {
+      final date = _extractDate(activity.data()['fecha']);
+      final year = date?.year ?? 0;
+      final month = date?.month ?? 0;
+      grouped
+          .putIfAbsent(year, () => {})
+          .putIfAbsent(month, () => [])
+          .add(activity);
+    }
+
+    final years = grouped.keys.toList()
+      ..sort((a, b) {
+        if (a == 0) return 1;
+        if (b == 0) return -1;
+        return nearestFirst ? a.compareTo(b) : b.compareTo(a);
+      });
+    final now = DateTime.now();
+
+    return Column(
+      children: [
+        for (final year in years)
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFAFAFC),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: ExpansionTile(
+              key: PageStorageKey('activity-year-$selectedPeriod-$year'),
+              initiallyExpanded: year == now.year || year == years.first,
+              shape: const Border(),
+              collapsedShape: const Border(),
+              leading: const Icon(
+                Icons.folder_outlined,
+                color: Color(0xFF4F46E5),
+              ),
+              title: Text(
+                year == 0 ? 'Sin fecha válida' : '$year',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              subtitle: Text(
+                '${grouped[year]!.values.fold<int>(0, (total, items) => total + items.length)} actividades',
+              ),
+              children: _buildMonthGroups(
+                context,
+                year,
+                grouped[year]!,
+                nextActivityId,
+                mobile,
+                now,
+                nearestFirst,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  List<Widget> _buildMonthGroups(
+    BuildContext context,
+    int year,
+    Map<int, List<QueryDocumentSnapshot<Map<String, dynamic>>>> months,
+    String? nextActivityId,
+    bool mobile,
+    DateTime now,
+    bool nearestFirst,
+  ) {
+    final monthKeys = months.keys.toList()
+      ..sort((a, b) {
+        if (a == 0) return 1;
+        if (b == 0) return -1;
+        return nearestFirst ? a.compareTo(b) : b.compareTo(a);
+      });
+
+    return [
+      for (final month in monthKeys)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE8EAF1)),
+            ),
+            child: ExpansionTile(
+              key: PageStorageKey(
+                'activity-month-$selectedPeriod-$year-$month',
+              ),
+              initiallyExpanded: (year == now.year && month == now.month) ||
+                  month == monthKeys.first,
+              shape: const Border(),
+              collapsedShape: const Border(),
+              leading: Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEDEBFF),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  month == 0 ? '--' : month.toString().padLeft(2, '0'),
+                  style: const TextStyle(
+                    color: Color(0xFF4F46E5),
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              title: Text(
+                month == 0 ? 'Sin mes' : _spanishMonthName(month),
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              subtitle: Text(
+                '${months[month]!.length} ${months[month]!.length == 1 ? "actividad" : "actividades"}',
+              ),
+              childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              children: [
+                for (var index = 0; index < months[month]!.length; index++) ...[
+                  _buildActivityItem(
+                    context,
+                    months[month]![index],
+                    nextActivityId == months[month]![index].id,
+                    mobile,
+                  ),
+                  if (index != months[month]!.length - 1)
+                    const Divider(height: 20),
+                ],
+              ],
+            ),
+          ),
+        ),
+    ];
+  }
+
+  String _spanishMonthName(int month) {
+    const months = [
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
+    ];
+    if (month < 1 || month > months.length) return 'Sin mes';
+    return months[month - 1];
   }
 
   Widget _buildActivityItem(
@@ -5279,6 +5440,14 @@ class _ActividadesPageState extends State<ActividadesPage> {
     final data = d.data();
     final status = safeString(data, 'estado', 'programada');
     final relativeDate = _formatRelativeActivityDate(data['fecha']);
+    final activityDate = _extractDate(data['fecha']);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final isPast = activityDate != null &&
+        DateTime(activityDate.year, activityDate.month, activityDate.day)
+            .isBefore(today);
+    final attendanceLabel =
+        isPast ? 'Registrar asistencia' : 'Abrir asistencia';
 
     if (mobile) {
       return Card(
@@ -5383,7 +5552,7 @@ class _ActividadesPageState extends State<ActividadesPage> {
                   FilledButton.tonalIcon(
                     onPressed: () => _openAttendance(context, d.id, data),
                     icon: const Icon(Icons.how_to_reg),
-                    label: const Text('Abrir asistencia'),
+                    label: Text(attendanceLabel),
                   ),
                   if (isAdmin(widget.leader.role))
                     IconButton.filledTonal(
@@ -5477,7 +5646,7 @@ class _ActividadesPageState extends State<ActividadesPage> {
           FilledButton.tonalIcon(
             onPressed: () => _openAttendance(context, d.id, data),
             icon: const Icon(Icons.how_to_reg),
-            label: const Text('Abrir asistencia'),
+            label: Text(attendanceLabel),
           ),
           if (isAdmin(widget.leader.role))
             IconButton(
@@ -5706,15 +5875,30 @@ class _AsistenciaPageState extends State<AsistenciaPage> {
 
   Future<_AttendancePageData> _loadPageData() async {
     final jovenes = await _loadJovenes();
-    final attendanceSnap = await db
-        .collection('asistencias')
-        .where('activityId', isEqualTo: widget.activityId)
-        .get();
+    Query<Map<String, dynamic>> attendanceQuery = db.collection('asistencias');
+
+    if (isAdmin(widget.leader.role)) {
+      attendanceQuery = attendanceQuery.where(
+        'activityId',
+        isEqualTo: widget.activityId,
+      );
+    } else {
+      // Firestore evaluates queries against every possible result. Restricting
+      // by leaderId proves that a leader can only read their own attendance
+      // documents and avoids a permission-denied error for the whole query.
+      attendanceQuery = attendanceQuery.where(
+        'leaderId',
+        isEqualTo: widget.currentUser.uid,
+      );
+    }
+
+    final attendanceSnap = await attendanceQuery.get();
 
     final attendedByJovenId = <String, bool>{};
     final docIdByJovenId = <String, String>{};
     for (final doc in attendanceSnap.docs) {
       final data = doc.data();
+      if (safeString(data, 'activityId') != widget.activityId) continue;
       final jovenId = safeString(data, 'jovenId');
       if (jovenId.isEmpty) continue;
       attendedByJovenId[jovenId] = data['attended'] == true;
@@ -5728,10 +5912,32 @@ class _AsistenciaPageState extends State<AsistenciaPage> {
     );
   }
 
-  Future<void> _saveAttendance(String jovenId, bool attended) async {
+  Future<void> _saveAttendance(
+    QueryDocumentSnapshot<Map<String, dynamic>> joven,
+    bool attended,
+  ) async {
+    final jovenId = joven.id;
+    final ownerLeaderId = safeString(
+      joven.data(),
+      'leaderId',
+      widget.currentUser.uid,
+    );
     final payload = <String, dynamic>{
       'activityId': widget.activityId,
+      'activityName': safeString(
+        widget.activityData,
+        'nombre',
+        'Actividad',
+      ),
+      'activityDate': _formatAnyDate(widget.activityData['fecha']),
       'jovenId': jovenId,
+      'jovenNombre': safeString(joven.data(), 'nombre'),
+      'leaderId': ownerLeaderId,
+      'leaderName': ownerLeaderId == widget.currentUser.uid
+          ? widget.leader.name
+          : safeString(joven.data(), 'leaderName'),
+      'leaderZone':
+          ownerLeaderId == widget.currentUser.uid ? widget.leader.zone : '',
       'attended': attended,
       'updatedAt': FieldValue.serverTimestamp(),
     };
@@ -5761,7 +5967,7 @@ class _AsistenciaPageState extends State<AsistenciaPage> {
     try {
       for (final joven in targets) {
         _localAttendance[joven.id] = attended;
-        await _saveAttendance(joven.id, attended);
+        await _saveAttendance(joven, attended);
       }
       if (!mounted) return;
       setState(() {});
@@ -5782,9 +5988,22 @@ class _AsistenciaPageState extends State<AsistenciaPage> {
   @override
   Widget build(BuildContext context) {
     final activityName = safeString(widget.activityData, 'nombre', 'Actividad');
+    final activityDate = _extractDate(widget.activityData['fecha']);
+    final formattedActivityDate = _formatAnyDate(widget.activityData['fecha']);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final isPastActivity = activityDate != null &&
+        DateTime(activityDate.year, activityDate.month, activityDate.day)
+            .isBefore(today);
 
     return Scaffold(
-      appBar: AppBar(title: Text('Pase de asistencia · $activityName')),
+      appBar: AppBar(
+        title: Text(
+          formattedActivityDate.isEmpty
+              ? 'Pase de asistencia · $activityName'
+              : '$activityName · $formattedActivityDate',
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(18),
         child: FutureBuilder<_AttendancePageData>(
@@ -5838,6 +6057,20 @@ class _AsistenciaPageState extends State<AsistenciaPage> {
                           spacing: 10,
                           runSpacing: 10,
                           children: [
+                            if (formattedActivityDate.isNotEmpty)
+                              Chip(
+                                avatar: Icon(
+                                  isPastActivity
+                                      ? Icons.history
+                                      : Icons.calendar_today_outlined,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  isPastActivity
+                                      ? 'Actividad pasada · $formattedActivityDate'
+                                      : formattedActivityDate,
+                                ),
+                              ),
                             Chip(
                               avatar:
                                   const Icon(Icons.people_outline, size: 18),
@@ -5945,7 +6178,7 @@ class _AsistenciaPageState extends State<AsistenciaPage> {
                                 setState(
                                   () => _localAttendance[joven.id] = value,
                                 );
-                                await _saveAttendance(joven.id, value);
+                                await _saveAttendance(joven, value);
                               },
                             );
                           },
@@ -6004,7 +6237,11 @@ class _AttendanceTileState extends State<_AttendanceTile> {
           widget.jovenNombre,
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
-        subtitle: Text('Tel: ${widget.telefono}'),
+        subtitle: Text(
+          widget.telefono.trim().isEmpty
+              ? 'Sin teléfono registrado'
+              : 'Tel: ${widget.telefono}',
+        ),
         onChanged: (v) async {
           setState(() {
             currentValue = v;
