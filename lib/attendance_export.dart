@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:universal_html/html.dart' as html;
+import 'data/app_services.dart';
 
 class AttendanceExportActivity {
   final String id;
@@ -116,40 +117,49 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
   @override
   void initState() {
     super.initState();
-    _datedActivities = widget.activities
-        .where((activity) => _exportDate(activity.data['fecha']) != null)
-        .toList()
-      ..sort((a, b) => _exportDate(b.data['fecha'])!
-          .compareTo(_exportDate(a.data['fecha'])!));
+    _datedActivities =
+        widget.activities
+            .where((activity) => _exportDate(activity.data['fecha']) != null)
+            .toList()
+          ..sort(
+            (a, b) => _exportDate(
+              b.data['fecha'],
+            )!.compareTo(_exportDate(a.data['fecha'])!),
+          );
     final now = DateTime.now();
-    final availableYears = _datedActivities
-        .map((activity) => _exportDate(activity.data['fecha'])!.year)
-        .toSet()
-        .toList()
-      ..sort((a, b) => b.compareTo(a));
+    final availableYears =
+        _datedActivities
+            .map((activity) => _exportDate(activity.data['fecha'])!.year)
+            .toSet()
+            .toList()
+          ..sort((a, b) => b.compareTo(a));
     _years = availableYears.isEmpty ? [now.year] : availableYears;
     _year = _years.contains(now.year) ? now.year : _years.first;
     _month = now.month;
     _activityId = _datedActivities.isEmpty ? null : _datedActivities.first.id;
-    _activityNames = _datedActivities
-        .map((activity) => _text(activity.data, 'nombre', 'Actividad').trim())
-        .where((name) => name.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    _activityNames =
+        _datedActivities
+            .map(
+              (activity) => _text(activity.data, 'nombre', 'Actividad').trim(),
+            )
+            .where((name) => name.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     _activityName = _activityNames.isEmpty ? null : _activityNames.first;
     _rangeStart = DateTime(now.year, now.month, 1);
     _rangeEnd = DateTime(now.year, now.month + 1, 0);
     if (_activityName != null) {
-      final matchingDates = _datedActivities
-          .where(
-            (activity) =>
-                _normalizeName(_text(activity.data, 'nombre')) ==
-                _normalizeName(_activityName!),
-          )
-          .map((activity) => _exportDate(activity.data['fecha'])!)
-          .toList()
-        ..sort();
+      final matchingDates =
+          _datedActivities
+              .where(
+                (activity) =>
+                    _normalizeName(_text(activity.data, 'nombre')) ==
+                    _normalizeName(_activityName!),
+              )
+              .map((activity) => _exportDate(activity.data['fecha'])!)
+              .toList()
+            ..sort();
       if (matchingDates.isNotEmpty) {
         _rangeStart = matchingDates.first;
         _rangeEnd = matchingDates.last;
@@ -170,16 +180,19 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
     }
 
     final snapshot = await widget.firestore.collection('leaders').get();
-    final leaders = snapshot.docs
-        .map(
-          (doc) => _LeaderOption(
-            id: doc.id,
-            name: _text(doc.data(), 'name', 'Sin nombre'),
-            zone: _normalizeZone(_text(doc.data(), 'zone')),
-          ),
-        )
-        .toList()
-      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    final leaders =
+        snapshot.docs
+            .map(
+              (doc) => _LeaderOption(
+                id: doc.id,
+                name: _text(doc.data(), 'name', 'Sin nombre'),
+                zone: _normalizeZone(_text(doc.data(), 'zone')),
+              ),
+            )
+            .toList()
+          ..sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          );
     return leaders;
   }
 
@@ -242,7 +255,8 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
       case _ExportScope.year:
         selected = selected.where((activity) {
           final date = _exportDate(activity.data['fecha'])!;
-          final matchesName = _yearActivityName == null ||
+          final matchesName =
+              _yearActivityName == null ||
               _normalizeName(_text(activity.data, 'nombre')) ==
                   _normalizeName(_yearActivityName!);
           return date.year == _year && matchesName;
@@ -256,9 +270,11 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
       );
     }
 
-    return selected.toList()
-      ..sort((a, b) => _exportDate(a.data['fecha'])!
-          .compareTo(_exportDate(b.data['fecha'])!));
+    return selected.toList()..sort(
+      (a, b) => _exportDate(
+        a.data['fecha'],
+      )!.compareTo(_exportDate(b.data['fecha'])!),
+    );
   }
 
   Future<void> _pickRangeDate({required bool start}) async {
@@ -289,10 +305,9 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
           _normalizeName(name),
     );
     if (matches.isEmpty) return;
-    final dates = matches
-        .map((activity) => _exportDate(activity.data['fecha'])!)
-        .toList()
-      ..sort();
+    final dates =
+        matches.map((activity) => _exportDate(activity.data['fecha'])!).toList()
+          ..sort();
     setState(() {
       _rangeStart = dates.first;
       _rangeEnd = dates.last;
@@ -342,8 +357,9 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
                   ),
                   IconButton(
                     tooltip: 'Cerrar',
-                    onPressed:
-                        _exporting ? null : () => Navigator.of(context).pop(),
+                    onPressed: _exporting
+                        ? null
+                        : () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.close),
                   ),
                 ],
@@ -384,9 +400,9 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
                       onChanged: _exporting
                           ? null
                           : (value) => setState(
-                                () => _scope =
-                                    value ?? _ExportScope.specificActivity,
-                              ),
+                              () => _scope =
+                                  value ?? _ExportScope.specificActivity,
+                            ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -432,8 +448,9 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
                               candidates.isEmpty
                                   ? 'No hay actividades que coincidan con estos filtros.'
                                   : '${candidates.length} ${candidates.length == 1 ? "actividad incluida" : "actividades incluidas"} antes de filtrar la asistencia.',
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w700),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ],
@@ -460,8 +477,9 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed:
-                        _exporting ? null : () => Navigator.of(context).pop(),
+                    onPressed: _exporting
+                        ? null
+                        : () => Navigator.of(context).pop(),
                     child: const Text('Cancelar'),
                   ),
                   const SizedBox(width: 10),
@@ -479,8 +497,9 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
                             ),
                           )
                         : const Icon(Icons.download),
-                    label:
-                        Text(_exporting ? 'Generando...' : 'Descargar Excel'),
+                    label: Text(
+                      _exporting ? 'Generando...' : 'Descargar Excel',
+                    ),
                   ),
                 ],
               ),
@@ -631,9 +650,7 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
         initialValue: _year,
         decoration: const InputDecoration(labelText: 'Año'),
         items: _years
-            .map(
-              (year) => DropdownMenuItem(value: year, child: Text('$year')),
-            )
+            .map((year) => DropdownMenuItem(value: year, child: Text('$year')))
             .toList(),
         onChanged: _exporting
             ? null
@@ -643,12 +660,13 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
   }
 
   Widget _buildAnalysisFilters(List<_LeaderOption> leaders) {
-    final zones = leaders
-        .map((leader) => leader.zone)
-        .where((zone) => zone.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    final zones =
+        leaders
+            .map((leader) => leader.zone)
+            .where((zone) => zone.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
 
     return ExpansionTile(
       tilePadding: EdgeInsets.zero,
@@ -691,8 +709,8 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
                 onChanged: _exporting
                     ? null
                     : (value) => setState(
-                          () => _attendanceStatus = value ?? 'presentes',
-                        ),
+                        () => _attendanceStatus = value ?? 'presentes',
+                      ),
               ),
             ),
             SizedBox(
@@ -714,9 +732,8 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
                 ],
                 onChanged: _exporting
                     ? null
-                    : (value) => setState(
-                          () => _activityStatus = value ?? 'todos',
-                        ),
+                    : (value) =>
+                          setState(() => _activityStatus = value ?? 'todos'),
               ),
             ),
             if (widget.user.isAdmin)
@@ -800,10 +817,7 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
           alignment: Alignment.centerLeft,
           child: Text(
             'Nota: “No asistió” solo cuenta registros guardados con ese estado; no equivale automáticamente a todo el padrón ausente.',
-            style: TextStyle(
-              color: Color(0xFF6B7280),
-              fontSize: 12,
-            ),
+            style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
           ),
         ),
       ],
@@ -888,13 +902,11 @@ class _AttendanceExportDialogState extends State<_AttendanceExportDialog> {
         parts.add('$_year');
         if (_yearActivityName != null) parts.add(_yearActivityName!);
     }
-    parts.add(
-      switch (_attendanceStatus) {
-        'todos' => 'todos los estados de asistencia',
-        'no_asistio' => 'no asistió (registrado)',
-        _ => 'solo presentes',
-      },
-    );
+    parts.add(switch (_attendanceStatus) {
+      'todos' => 'todos los estados de asistencia',
+      'no_asistio' => 'no asistió (registrado)',
+      _ => 'solo presentes',
+    });
     if (_activityStatus != 'todos') {
       parts.add('actividad: $_activityStatus');
     }
@@ -999,32 +1011,21 @@ Future<_ExportBuildResult> _buildExportRows({
   required String? zone,
 }) async {
   final activityById = {
-    for (final activity in activities) activity.id: activity
+    for (final activity in activities) activity.id: activity,
   };
   final attendanceDocs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
 
-  if (user.isAdmin) {
-    for (final ids in _chunks(activityById.keys.toList(), 10)) {
-      final snapshot = await firestore
-          .collection('asistencias')
-          .where('activityId', whereIn: ids)
-          .get();
-      attendanceDocs.addAll(snapshot.docs);
-    }
-  } else {
-    final snapshot = await firestore
+  for (final ids in _chunks(activityById.keys.toList(), 10)) {
+    Query<Map<String, dynamic>> query = firestore
         .collection('asistencias')
-        .where('leaderId', isEqualTo: user.uid)
-        .get();
-    attendanceDocs.addAll(
-      snapshot.docs.where(
-        (doc) => activityById.containsKey(_text(doc.data(), 'activityId')),
-      ),
-    );
+        .where('activityId', whereIn: ids);
+    if (!user.isAdmin) query = query.where('leaderId', isEqualTo: user.uid);
+    attendanceDocs.addAll((await query.get()).docs);
   }
 
-  final statusFiltered = attendanceDocs.where((doc) {
+  final statusFiltered = latestAttendanceDocuments(attendanceDocs).where((doc) {
     final data = doc.data();
+    if (data['attended'] is! bool) return false;
     final attended = data['attended'] == true;
     if (attendanceStatus == 'presentes' && !attended) return false;
     if (attendanceStatus == 'no_asistio' && attended) return false;
@@ -1070,11 +1071,7 @@ Future<_ExportBuildResult> _buildExportRows({
 
     final jovenId = _text(attendance, 'jovenId');
     final joven = jovenesById[jovenId] ?? const <String, dynamic>{};
-    final ownerId = _text(
-      attendance,
-      'leaderId',
-      _text(joven, 'leaderId'),
-    );
+    final ownerId = _text(attendance, 'leaderId', _text(joven, 'leaderId'));
     if (!user.isAdmin && ownerId != user.uid) continue;
     if (leaderId != null && ownerId != leaderId) continue;
 
@@ -1119,7 +1116,8 @@ Future<_ExportBuildResult> _buildExportRows({
         zone: leaderZone.isEmpty ? 'Sin zona' : leaderZone,
         age: age,
         phone: _text(joven, 'telefono', _text(attendance, 'telefono')),
-        updatedAt: _exportDate(attendance['updatedAt']) ??
+        updatedAt:
+            _exportDate(attendance['updatedAt']) ??
             _exportDate(attendance['createdAt']),
       ),
     );
@@ -1128,11 +1126,13 @@ Future<_ExportBuildResult> _buildExportRows({
   rows.sort((a, b) {
     final date = a.activityDate.compareTo(b.activityDate);
     if (date != 0) return date;
-    final activity =
-        a.activityName.toLowerCase().compareTo(b.activityName.toLowerCase());
+    final activity = a.activityName.toLowerCase().compareTo(
+      b.activityName.toLowerCase(),
+    );
     if (activity != 0) return activity;
-    final owner =
-        a.leaderName.toLowerCase().compareTo(b.leaderName.toLowerCase());
+    final owner = a.leaderName.toLowerCase().compareTo(
+      b.leaderName.toLowerCase(),
+    );
     if (owner != 0) return owner;
     return a.jovenName.toLowerCase().compareTo(b.jovenName.toLowerCase());
   });
@@ -1214,27 +1214,18 @@ Uint8List createAttendanceWorkbook({
   );
   summary.cell(CellIndex.indexByString('A1')).cellStyle = titleStyle;
   summary.setRowHeight(0, 30);
-  _writeExcelRow(
-    summary,
-    2,
-    ['Tipo de reporte', scopeTitle],
-    labelStyle: sectionStyle,
-  );
-  _writeExcelRow(
-    summary,
-    3,
-    ['Filtros aplicados', filterDescription],
-    labelStyle: sectionStyle,
-  );
-  _writeExcelRow(
-    summary,
-    4,
-    [
-      'Generado',
-      DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()),
-    ],
-    labelStyle: sectionStyle,
-  );
+  _writeExcelRow(summary, 2, [
+    'Tipo de reporte',
+    scopeTitle,
+  ], labelStyle: sectionStyle);
+  _writeExcelRow(summary, 3, [
+    'Filtros aplicados',
+    filterDescription,
+  ], labelStyle: sectionStyle);
+  _writeExcelRow(summary, 4, [
+    'Generado',
+    DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()),
+  ], labelStyle: sectionStyle);
 
   final includedActivityIds = rows.map((row) => row.activityId).toSet();
   final presentCount = rows.where((row) => row.attended).length;
@@ -1244,21 +1235,23 @@ Uint8List createAttendanceWorkbook({
   final kpis = <List<CellValue?>>[
     [
       TextCellValue('Actividades con registros'),
-      IntCellValue(includedActivityIds.length)
+      IntCellValue(includedActivityIds.length),
     ],
     [TextCellValue('Registros exportados'), IntCellValue(rows.length)],
     [TextCellValue('Presentes'), IntCellValue(presentCount)],
     [
       TextCellValue('No asistió (registrado)'),
-      IntCellValue(absentRecordedCount)
+      IntCellValue(absentRecordedCount),
     ],
     [
       TextCellValue('Personas únicas'),
-      IntCellValue(rows
-          .map((row) => row.jovenId)
-          .where((id) => id.isNotEmpty)
-          .toSet()
-          .length),
+      IntCellValue(
+        rows
+            .map((row) => row.jovenId)
+            .where((id) => id.isNotEmpty)
+            .toSet()
+            .length,
+      ),
     ],
   ];
   for (var index = 0; index < kpis.length; index++) {
@@ -1274,19 +1267,14 @@ Uint8List createAttendanceWorkbook({
   for (final row in rows) {
     activitySummary.putIfAbsent(row.activityId, () => []).add(row);
   }
-  _writeStyledExcelRow(
-    summary,
-    13,
-    [
-      'Actividad',
-      'Fecha',
-      'Estado',
-      'Presentes',
-      'No asistió\n(registrado)',
-      'Total exportado',
-    ],
-    headerStyle,
-  );
+  _writeStyledExcelRow(summary, 13, [
+    'Actividad',
+    'Fecha',
+    'Estado',
+    'Presentes',
+    'No asistió\n(registrado)',
+    'Total exportado',
+  ], headerStyle);
   final summaries = activitySummary.values.toList()
     ..sort((a, b) => a.first.activityDate.compareTo(b.first.activityDate));
   for (var index = 0; index < summaries.length; index++) {
@@ -1294,26 +1282,23 @@ Uint8List createAttendanceWorkbook({
     final first = group.first;
     final rowIndex = 14 + index;
     final style = index.isEven ? bodyStyle : alternateBodyStyle;
-    _writeStyledCellValues(
-      summary,
-      rowIndex,
-      [
-        TextCellValue(first.activityName),
-        DateCellValue(
-          year: first.activityDate.year,
-          month: first.activityDate.month,
-          day: first.activityDate.day,
-        ),
-        TextCellValue(first.activityStatus),
-        IntCellValue(group.where((item) => item.attended).length),
-        IntCellValue(group.where((item) => !item.attended).length),
-        IntCellValue(group.length),
-      ],
-      style,
-    );
+    _writeStyledCellValues(summary, rowIndex, [
+      TextCellValue(first.activityName),
+      DateCellValue(
+        year: first.activityDate.year,
+        month: first.activityDate.month,
+        day: first.activityDate.day,
+      ),
+      TextCellValue(first.activityStatus),
+      IntCellValue(group.where((item) => item.attended).length),
+      IntCellValue(group.where((item) => !item.attended).length),
+      IntCellValue(group.length),
+    ], style);
     summary
         .cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
-        .cellStyle = index.isEven ? dateStyle : alternateDateStyle;
+        .cellStyle = index.isEven
+        ? dateStyle
+        : alternateDateStyle;
   }
   final noteRow = 15 + summaries.length;
   summary.merge(
@@ -1324,12 +1309,15 @@ Uint8List createAttendanceWorkbook({
     ),
   );
   summary
-      .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: noteRow))
-      .cellStyle = noteStyle;
+          .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: noteRow))
+          .cellStyle =
+      noteStyle;
   summary.setRowHeight(noteRow, 34);
   for (var column = 0; column < 6; column++) {
     summary.setColumnWidth(
-        column, [30.0, 14.0, 15.0, 13.0, 17.0, 15.0][column]);
+      column,
+      [30.0, 14.0, 15.0, 13.0, 17.0, 15.0][column],
+    );
   }
 
   final headers = <String>[
@@ -1414,7 +1402,9 @@ Uint8List createAttendanceWorkbook({
     );
     detail
         .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-        .cellStyle = alternate ? alternateDateStyle : dateStyle;
+        .cellStyle = alternate
+        ? alternateDateStyle
+        : dateStyle;
     final updatedColumn = includeContactData ? 12 : 10;
     detail
         .cell(
@@ -1423,7 +1413,9 @@ Uint8List createAttendanceWorkbook({
             rowIndex: rowIndex,
           ),
         )
-        .cellStyle = alternate ? alternateDateTimeStyle : dateTimeStyle;
+        .cellStyle = alternate
+        ? alternateDateTimeStyle
+        : dateTimeStyle;
   }
 
   final widths = <double>[
@@ -1453,9 +1445,9 @@ Uint8List createAttendanceWorkbook({
 }
 
 xlsx.Border _thinExcelBorder() => xlsx.Border(
-      borderStyle: xlsx.BorderStyle.Thin,
-      borderColorHex: 'FFD7DCE5'.excelColor,
-    );
+  borderStyle: xlsx.BorderStyle.Thin,
+  borderColorHex: 'FFD7DCE5'.excelColor,
+);
 
 void _writeExcelRow(
   Sheet sheet,
@@ -1510,11 +1502,7 @@ List<List<T>> _chunks<T>(List<T> items, int size) {
   return result;
 }
 
-String _text(
-  Map<String, dynamic> data,
-  String key, [
-  String fallback = '',
-]) {
+String _text(Map<String, dynamic> data, String key, [String fallback = '']) {
   final value = data[key];
   if (value == null) return fallback;
   final text = value.toString().trim();
@@ -1522,7 +1510,7 @@ String _text(
 }
 
 DateTime? _exportDate(dynamic value) {
-  if (value is Timestamp) return value.toDate();
+  if (value is Timestamp) return value.toDate().toUtc();
   if (value is DateTime) return value;
   if (value == null) return null;
   return DateTime.tryParse(value.toString().trim());
@@ -1538,8 +1526,10 @@ String _normalizeName(String value) => value.trim().toLowerCase();
 String _normalizeZone(String value) {
   final clean = value.trim();
   if (clean.isEmpty) return '';
-  final match =
-      RegExp(r'^(?:zona\s*)?([0-9]+)$', caseSensitive: false).firstMatch(clean);
+  final match = RegExp(
+    r'^(?:zona\s*)?([0-9]+)$',
+    caseSensitive: false,
+  ).firstMatch(clean);
   return match == null ? clean : 'Zona ${match.group(1)}';
 }
 
@@ -1555,29 +1545,29 @@ String _activityStatusLabel(String status) {
 }
 
 String _spanishMonth(int month) => const [
-      'Enero',
-      'Febrero',
-      'Marzo',
-      'Abril',
-      'Mayo',
-      'Junio',
-      'Julio',
-      'Agosto',
-      'Septiembre',
-      'Octubre',
-      'Noviembre',
-      'Diciembre',
-    ][month - 1];
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+][month - 1];
 
 String _spanishWeekday(int weekday) => const [
-      'Lunes',
-      'Martes',
-      'Miércoles',
-      'Jueves',
-      'Viernes',
-      'Sábado',
-      'Domingo',
-    ][weekday - 1];
+  'Lunes',
+  'Martes',
+  'Miércoles',
+  'Jueves',
+  'Viernes',
+  'Sábado',
+  'Domingo',
+][weekday - 1];
 
 void _downloadXlsx(Uint8List bytes, String filename) {
   if (!kIsWeb) {

@@ -1,155 +1,126 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
+    function signedIn() { return request.auth != null; }
+    function profile() { return get(/databases/$(database)/documents/leaders/$(request.auth.uid)).data; }
+    function active() {
+      return signedIn() && exists(/databases/$(database)/documents/leaders/$(request.auth.uid)) &&
+        profile().status == 'activo' && profile().role in ['admin', 'leader'];
     }
-
-    function myLeaderDoc() {
-      return get(/databases/$(database)/documents/leaders/$(request.auth.uid));
+    function admin() { return active() && profile().role == 'admin'; }
+    function owns(data) { return active() && data.leaderId == request.auth.uid; }
+    function readable(data) { return admin() || owns(data); }
+    function text(value, maximum) { return value is string && value.size() <= maximum; }
+    function requiredText(value, maximum) { return text(value, maximum) && value.size() > 0; }
+    function validOwner(data) {
+      return data.leaderId is string &&
+        exists(/databases/$(database)/documents/leaders/$(data.leaderId)) &&
+        get(/databases/$(database)/documents/leaders/$(data.leaderId)).data.status == 'activo';
     }
-
-    function myLeaderData() {
-      return myLeaderDoc().data;
+    function creation(fields) {
+      return request.resource.data.keys().hasOnly(fields) && request.resource.data.get('archived',false) == false &&
+        request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
     }
-
-    function leaderProfileExists() {
-      return signedIn() &&
-        exists(/databases/$(database)/documents/leaders/$(request.auth.uid));
+    function update(fields) {
+      return resource.data.get('archived', false) == false &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields) &&
+        request.resource.data.createdAt == resource.data.get('createdAt', request.time) &&
+        request.resource.data.updatedAt == request.time;
     }
-
-    function isActiveLeader() {
-      return leaderProfileExists() &&
-        myLeaderData().status == 'activo';
+    function ownerUnchanged() { return request.resource.data.leaderId == resource.data.leaderId; }
+    function youngOwner(id) {
+      return active() && id is string &&
+        get(/databases/$(database)/documents/jovenes/$(id)).data.leaderId == request.auth.uid;
     }
-
-    function isAdmin() {
-      return isActiveLeader() &&
-        myLeaderData().role == 'admin';
+    // Administrative writes and legacy invitation claims are server-only.
+    match /leaders/{id} {
+      allow read: if admin() || (signedIn() && id == request.auth.uid);
+      allow write: if false;
     }
-
-    function isSelf(uid) {
-      return signedIn() && request.auth.uid == uid;
+    match /auditLog/{id} { allow read: if admin(); allow write: if false; }
+    function validRecord(data) {
+      return requiredText(data.titulo, 150) && requiredText(data.descripcion, 3000);
     }
-
-    function emailKey() {
-      return request.auth.token.email;
+    match /registros/{id} {
+      allow read: if readable(resource.data);
+      allow create: if readable(request.resource.data) && validOwner(request.resource.data) &&
+        validRecord(request.resource.data) && creation(['archived','titulo','descripcion','leaderId','createdAt','updatedAt']);
+      allow update: if readable(resource.data) && ownerUnchanged() && validRecord(request.resource.data) &&
+        update(['titulo','descripcion','createdAt','updatedAt']);
+      allow delete: if false;
     }
-
-    function matchesOwnEmail(email) {
-      return signedIn() &&
-        emailKey() != null &&
-        email == emailKey();
+    function validReport(data) {
+      return requiredText(data.semana,150) && text(data.observaciones,3000) &&
+        data.fecha is timestamp && data.asistencia is int && data.asistencia >= 0 && data.asistencia <= 100000;
     }
-
-    function pendingLeaderInviteExists() {
-      return signedIn() &&
-        emailKey() != null &&
-        exists(/databases/$(database)/documents/leaders/$(emailKey()));
+    match /reportes/{id} {
+      allow read: if readable(resource.data);
+      allow create: if readable(request.resource.data) && validOwner(request.resource.data) && validReport(request.resource.data) &&
+        creation(['archived','semana','fecha','asistencia','observaciones','leaderId','createdAt','updatedAt']);
+      allow update: if readable(resource.data) && ownerUnchanged() && validReport(request.resource.data) &&
+        update(['semana','fecha','asistencia','observaciones','createdAt','updatedAt']);
+      allow delete: if false;
     }
-
-    function pendingLeaderInviteData() {
-      return get(/databases/$(database)/documents/leaders/$(emailKey())).data;
+    function validYoung(data) {
+      return requiredText(data.nombre,150) && text(data.searchName,150) && data.edad is int && data.edad >= 0 && data.edad <= 120 &&
+        data.fechaNacimiento is timestamp && data.fechaNacimiento <= request.time &&
+        text(data.telefono,30) && text(data.leaderName,150) &&
+        data.claseNuevo is bool && data.claseDoctrina is bool && data.claseMaestro is bool &&
+        data.claseLiderazgo is bool && data.bautismo is bool;
     }
-
-    function canClaimOwnLeaderProfile(leaderId) {
-      return isSelf(leaderId) &&
-        !leaderProfileExists() &&
-        pendingLeaderInviteExists() &&
-        request.resource.data.email == emailKey() &&
-        request.resource.data.name == pendingLeaderInviteData().name &&
-        request.resource.data.zone == pendingLeaderInviteData().zone &&
-        request.resource.data.status == pendingLeaderInviteData().status &&
-        request.resource.data.role == pendingLeaderInviteData().role;
+    match /jovenes/{id} {
+      allow read: if readable(resource.data);
+      allow create: if readable(request.resource.data) && validOwner(request.resource.data) && validYoung(request.resource.data) &&
+        creation(['archived','searchName','nombre','edad','fechaNacimiento','telefono','claseNuevo','claseDoctrina','claseMaestro',
+          'claseLiderazgo','bautismo','leaderId','leaderName','createdAt','updatedAt']);
+      allow update: if readable(resource.data) && (admin() || ownerUnchanged()) &&
+        validOwner(request.resource.data) && validYoung(request.resource.data) &&
+        update(['searchName','nombre','edad','fechaNacimiento','telefono','claseNuevo','claseDoctrina','claseMaestro',
+          'claseLiderazgo','bautismo','leaderId','leaderName','createdAt','updatedAt']);
+      allow delete: if false;
     }
-
-    function jovenBelongsToCurrentLeader(jovenId) {
-      return isActiveLeader() &&
-        get(/databases/$(database)/documents/jovenes/$(jovenId)).data.leaderId == request.auth.uid;
+    function validActivity(data) {
+      return requiredText(data.nombre,150) && text(data.descripcion,3000) && data.fecha is timestamp &&
+        data.estado in ['programada','activa','cerrada'];
     }
-
-    match /leaders/{leaderId} {
-      allow read: if isAdmin() ||
-        isSelf(leaderId) ||
-        matchesOwnEmail(resource.data.email);
-      allow create: if isAdmin() || canClaimOwnLeaderProfile(leaderId);
-      allow update: if isAdmin();
-      allow delete: if isAdmin() ||
-        (signedIn() &&
-          emailKey() != null &&
-          leaderId == emailKey() &&
-          matchesOwnEmail(resource.data.email));
+    match /actividades/{id} {
+      allow read: if active();
+      allow create: if admin() && validActivity(request.resource.data) &&
+        creation(['archived','nombre','descripcion','fecha','estado','createdAt','updatedAt']);
+      allow update: if admin() && validActivity(request.resource.data) &&
+        update(['nombre','descripcion','fecha','estado','createdAt','updatedAt']);
+      allow delete: if false;
     }
-
-    match /registros/{docId} {
-      allow read: if isAdmin() ||
-        (isActiveLeader() && resource.data.leaderId == request.auth.uid);
-
-      allow create: if isAdmin() ||
-        (isActiveLeader() &&
-          request.resource.data.leaderId == request.auth.uid);
-
-      allow update, delete: if isAdmin() ||
-        (isActiveLeader() && resource.data.leaderId == request.auth.uid);
+    function attendanceReadable(data) { return readable(data) || youngOwner(data.jovenId); }
+    function twoDigits(value) { return (value < 10 ? '0' : '') + string(value); }
+    function isoDate(value) { return string(value.year()) + '-' + twoDigits(value.month()) + '-' + twoDigits(value.day()); }
+    function validAttendance(id, data) {
+      let young = get(/databases/$(database)/documents/jovenes/$(data.jovenId)).data;
+      let activity = get(/databases/$(database)/documents/actividades/$(data.activityId)).data;
+      return data.activityId is string && data.jovenId is string &&
+        data.activityId.matches('^[A-Za-z0-9_-]+$') && data.jovenId.matches('^[A-Za-z0-9_-]+$') &&
+        id == data.activityId + ':' + data.jovenId &&
+        data.leaderId == young.leaderId && (admin() || owns(data)) &&
+        young.get('archived',false) == false && activity.get('archived',false) == false && activity.estado != 'cerrada' &&
+        data.attended is bool && data.version is int && data.version > 0 &&
+        data.updatedBy == request.auth.uid &&
+        data.jovenNombre == young.nombre && data.activityName == activity.nombre &&
+        text(data.leaderName,150) && text(data.leaderZone,80) &&
+        data.activityDate is string && data.activityDate == isoDate(activity.fecha);
     }
-
-    match /reportes/{docId} {
-      allow read: if isAdmin() ||
-        (isActiveLeader() && resource.data.leaderId == request.auth.uid);
-
-      allow create: if isAdmin() ||
-        (isActiveLeader() &&
-          request.resource.data.leaderId == request.auth.uid);
-
-      allow update, delete: if isAdmin() ||
-        (isActiveLeader() && resource.data.leaderId == request.auth.uid);
+    match /asistencias/{id} {
+      // A transaction may read its missing canonical target before creating it.
+      allow get: if active() && (!exists(/databases/$(database)/documents/asistencias/$(id)) || attendanceReadable(resource.data));
+      allow list: if attendanceReadable(resource.data);
+      allow create: if active() && validAttendance(id, request.resource.data) && request.resource.data.version == 1 &&
+        creation(['activityId','activityName','activityDate','jovenId','jovenNombre','leaderId','leaderName',
+          'leaderZone','attended','version','updatedBy','createdAt','updatedAt']);
+      allow update: if attendanceReadable(resource.data) && validAttendance(id,request.resource.data) &&
+        request.resource.data.activityId == resource.data.activityId && request.resource.data.jovenId == resource.data.jovenId &&
+        request.resource.data.version == resource.data.get('version',0) + 1 &&
+        update(['activityName','activityDate','jovenNombre','leaderId','leaderName','leaderZone','attended','version','updatedBy','createdAt','updatedAt']);
+      allow delete: if false;
     }
-
-    match /jovenes/{jovenId} {
-      allow read: if isAdmin() ||
-        (isActiveLeader() && resource.data.leaderId == request.auth.uid);
-
-      allow create: if isAdmin() ||
-        (isActiveLeader() &&
-          request.resource.data.leaderId == request.auth.uid);
-
-      allow update, delete: if isAdmin() ||
-        (isActiveLeader() && resource.data.leaderId == request.auth.uid);
-    }
-
-    match /actividades/{actividadId} {
-      allow read: if isActiveLeader();
-      allow create, update, delete: if isAdmin();
-    }
-
-    function attendanceBelongsToCurrentLeader() {
-      return isActiveLeader() &&
-        (
-          resource.data.leaderId == request.auth.uid ||
-          (
-            resource.data.jovenId is string &&
-            jovenBelongsToCurrentLeader(resource.data.jovenId)
-          )
-        );
-    }
-
-    function newAttendanceBelongsToCurrentLeader() {
-      return isActiveLeader() &&
-        request.resource.data.leaderId == request.auth.uid &&
-        request.resource.data.jovenId is string &&
-        jovenBelongsToCurrentLeader(request.resource.data.jovenId);
-    }
-
-    match /asistencias/{asistenciaId} {
-      allow read: if isAdmin() || attendanceBelongsToCurrentLeader();
-
-      allow create: if isAdmin() || newAttendanceBelongsToCurrentLeader();
-
-      allow update: if isAdmin() ||
-        (attendanceBelongsToCurrentLeader() &&
-          newAttendanceBelongsToCurrentLeader());
-
-      allow delete: if isAdmin() || attendanceBelongsToCurrentLeader();
-    }
+    match /{document=**} { allow read, write: if false; }
   }
 }

@@ -49,14 +49,8 @@ void main() {
     expect(workbook.tables.keys, isNot(contains('Sheet1')));
 
     final summary = workbook.tables['Resumen']!;
-    expect(
-      summary.cell(CellIndex.indexByString('B9')).value,
-      IntCellValue(2),
-    );
-    expect(
-      summary.cell(CellIndex.indexByString('B10')).value,
-      IntCellValue(1),
-    );
+    expect(summary.cell(CellIndex.indexByString('B9')).value, IntCellValue(2));
+    expect(summary.cell(CellIndex.indexByString('B10')).value, IntCellValue(1));
 
     final detail = workbook.tables['Asistencia']!;
     expect(

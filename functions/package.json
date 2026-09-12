@@ -1,0 +1,16 @@
+{
+  "name": "jv-leaders-backend",
+  "private": true,
+  "main": "index.js",
+  "engines": {"node": "22"},
+  "scripts": {
+    "test": "node --test test/domain.test.js",
+    "test:rules": "node --test test/rules.test.js",
+    "test:integration": "node --test test/integration.test.js",
+    "test:emulators": "node --test test/rules.test.js test/integration.test.js test/migration.test.js",
+    "migrate:check": "node scripts/migrate.js",
+    "check": "node --check index.js && node --check scripts/migrate.js"
+  },
+  "dependencies": {"firebase-admin": "^13.4.0", "firebase-functions": "^6.4.0"},
+  "devDependencies": {"@firebase/rules-unit-testing": "^4.0.1", "firebase": "^11.10.0"}
+}

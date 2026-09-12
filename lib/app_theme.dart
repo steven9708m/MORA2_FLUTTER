@@ -49,7 +49,7 @@ class JVTheme {
         labelStyle: const TextStyle(color: ink, fontWeight: FontWeight.w600),
       ),
       dataTableTheme: DataTableThemeData(
-        headingRowColor: MaterialStateProperty.all(const Color(0xFFF8FAFC)),
+        headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
         headingTextStyle: const TextStyle(
           color: Color(0xFF1F2937),
           fontWeight: FontWeight.w800,
@@ -60,8 +60,10 @@ class JVTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surface,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 15,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Color(0xFFD8DDEA)),
@@ -105,9 +107,7 @@ class JVTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
