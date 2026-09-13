@@ -22,8 +22,8 @@ test('migration diagnoses without writes, preserves originals and can be repeate
   for(const [id,attended,time] of [['old',false,1],['latest',true,2]]) {
     await db.doc(`asistencias/${id}`).set({activityId:'event',jovenId:'young',leaderId:user.email,attended,updatedAt:Timestamp.fromMillis(time)});
   }
-  const migrate=async apply=>{
-    const args=['scripts/migrate.js','--project',projectId,...(apply?['--apply','--confirm-project',projectId]:[])];
+  const migrate=async (apply,preserve=false)=>{
+    const args=['scripts/migrate.js','--project',projectId,...(apply?['--apply','--confirm-project',projectId]:[]),...(preserve?['--preserve-orphans']:[])];
     const {stdout}=await run(process.execPath,args,{timeout:45000});return JSON.parse(stdout);
   };
   const diagnostic=await migrate(false);assert.equal(diagnostic.mode,'dry-run');
@@ -40,4 +40,10 @@ test('migration diagnoses without writes, preserves originals and can be repeate
   assert.equal((await db.doc(`migrationBackups/${applied.runId}/documents/asistencias:latest`).get()).data().data.leaderId,user.email);
   assert.equal((await db.doc('reportes/report').get()).data().fechaInferredFromCreatedAt,true);
   const repeated=await migrate(true);assert.equal(repeated.updated,0);assert.equal(repeated.leaders,0);
+  await db.doc('asistencias/orphan').set({activityId:'event',jovenId:'deleted-young',leaderId:user.uid,attended:true});
+  const preserved=await migrate(true,true);assert.equal(preserved.needsReview,0);assert.equal(preserved.archivedOrphans,1);
+  const orphan=await db.doc('asistencias/orphan').get();assert.equal(orphan.exists,true);assert.equal(orphan.data().archived,true);
+  assert.equal(orphan.data().attended,true);assert.equal(orphan.data().migrationIssue,'missing-youth');
+  assert.equal((await db.doc(`migrationBackups/${preserved.runId}/documents/asistencias:orphan`).get()).exists,true);
+  assert.equal((await migrate(true,true)).updated,0);
 });

@@ -24,7 +24,7 @@ El frontend incorpora rutas directas, localización española, diseño adaptable
 
 ## Migración obligatoria
 
-No se ha ejecutado la migración ni publicado esta revisión en producción. Verifica el proyecto `grupo-juvenil-morados` y la base `mora2` antes de actuar.
+Esta revisión ya se migró y publicó en producción el 12 de septiembre de 2026, hora de Panamá; consulta el [registro del despliegue](DESPLIEGUE_2026-09-12.md). Los pasos siguientes quedan como procedimiento de referencia. Verifica el proyecto `grupo-juvenil-morados` y la base `mora2` antes de cualquier ejecución adicional.
 
 1. Ensaya en un entorno de pruebas. Conserva una exportación administrada completa de Firestore y la versión desplegada. Las copias por documento del script no reemplazan el respaldo completo.
 2. Prepara credenciales ADC administrativas para el mantenimiento. No incluyas cuentas de servicio en Git ni en el frontend.
@@ -43,11 +43,13 @@ No se ha ejecutado la migración ni publicado esta revisión en producción. Ver
    ```
 
    El script añade `archived: false` y `searchName`, convierte fechas ISO válidas, migra perfiles antiguos al UID comprobado y actualiza referencias. Completa la fecha faltante de reportes desde `createdAt`, marcada con `fechaInferredFromCreatedAt`. Deduplica asistencia conservando la última actualización. Los originales se guardan en `migrationBackups/{runId}/documents` antes de modificarse. Una escritura concurrente detectada aborta la operación; investiga y repite con los escritores detenidos.
+
+   Si el diagnóstico identifica asistencias cuyos jóvenes o actividades ya fueron eliminados, la opción explícita `--preserve-orphans` conserva esos documentos en `asistencias`, con `archived: true` y `migrationIssue`, y guarda sus originales. No recrea personas ni actividades. Las marcas archivadas quedan fuera de los totales activos. Sin esa opción, el diagnóstico sigue señalándolas como pendientes de revisión. El informe incluye las rutas y motivos de cada incidencia.
 6. Repite el diagnóstico, resuelve todos los casos pendientes y compara conteos y muestras con el respaldo. Confirma que quede un administrador activo con ID coincidente con Authentication antes de reabrir.
 
 ## Publicación coordinada
 
-Los siguientes comandos no se han ejecutado en producción como parte de esta revisión.
+Los siguientes comandos documentan el despliegue coordinado. Para actualizaciones posteriores, no repitas la migración ni el mantenimiento si el cambio no lo requiere.
 
 Despliega índices y espera que estén listos:
 

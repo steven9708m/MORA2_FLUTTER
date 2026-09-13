@@ -12,6 +12,7 @@ List<QueryDocumentSnapshot<Map<String, dynamic>>> latestAttendanceDocuments(
       ? (data['updatedAt'] as Timestamp).millisecondsSinceEpoch
       : 0;
   for (final doc in docs) {
+    if (doc.data()['archived'] == true) continue;
     final data = doc.data(),
         key = '${doc.data()['activityId']}:${doc.data()['jovenId']}';
     final previous = result[key];
@@ -157,7 +158,10 @@ class AttendanceRepository {
   ) {
     final result = <String, AttendanceRecord>{};
     for (final doc in docs) {
-      if (doc.data()?['jovenId'] is! String) continue;
+      if (doc.data()?['jovenId'] is! String ||
+          doc.data()?['archived'] == true) {
+        continue;
+      }
       final record = AttendanceRecord.fromDoc(doc);
       final previous = result[record.jovenId];
       if (previous == null ||

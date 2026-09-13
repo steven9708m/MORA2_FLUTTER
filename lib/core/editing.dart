@@ -140,6 +140,7 @@ List<QueryDocumentSnapshot<Map<String, dynamic>>> _uniqueAttendance(
   final byPair = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
   for (final doc in docs) {
     final data = doc.data();
+    if (data['archived'] == true) continue;
     final key = '${data['activityId']}:${data['jovenId']}';
     final previous = byPair[key];
     final date = data['updatedAt'] is Timestamp

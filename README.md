@@ -42,4 +42,4 @@ Los módulos de interfaz todavía comparten una biblioteca Dart mediante `part`;
 
 **Esta versión requiere migrar los datos existentes antes de publicar el frontend.** Las listas filtran por `archived: false` y la búsqueda necesita `searchName`. Publicar solamente la web puede ocultar documentos antiguos y dejar operaciones administrativas sin servidor.
 
-Consulta [la guía de actualización](docs/ACTUALIZACION.md). No se ha migrado ni desplegado esta revisión en producción.
+Consulta [la guía de actualización](docs/ACTUALIZACION.md) y [el registro del despliegue realizado](docs/DESPLIEGUE_2026-09-12.md). Esta revisión se migró y publicó en producción el 12 de septiembre de 2026, hora de Panamá.

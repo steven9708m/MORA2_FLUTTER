@@ -5,18 +5,11 @@ const {initializeApp} = require('firebase-admin/app');
 const {getFirestore, FieldValue, Timestamp, FieldPath} = require('firebase-admin/firestore');
 const {getAuth} = require('firebase-admin/auth');
 const {attendanceId} = require('../domain');
-const args = process.argv.slice(2);
-const option = key => args[args.indexOf(key) + 1];
-const projectId = args.includes('--project') ? option('--project') : null;
-const apply = args.includes('--apply');
-if (!projectId || (apply && (!args.includes('--confirm-project') || option('--confirm-project') !== projectId))) {
-  throw new Error('Usa --project ID para diagnóstico; para escribir añade --apply --confirm-project ID.');
-}
-initializeApp({projectId});
-const db = getFirestore('mora2');
-const auth = getAuth();
+async function migrate({projectId, apply = false, preserveOrphans = false, db, auth}) {
+if (!projectId || !db || !auth) throw new Error('Project, Firestore and Auth are required.');
 const runId = `review-${Date.now()}`;
-const report = {mode: apply ? 'apply' : 'dry-run', projectId, runId, updated: 0, duplicates: 0, leaders: 0, needsReview: 0};
+const report = {mode: apply ? 'apply' : 'dry-run', projectId, runId, updated: 0, duplicates: 0, leaders: 0, archivedOrphans: 0, needsReview: 0, issues: []};
+function review(doc,reason) {report.needsReview++;report.issues.push({path:doc.ref.path,reason});}
 
 async function all(collection) {
   const result = [];
@@ -55,13 +48,13 @@ async function main() {
   for (const leader of leaders) {
     let user;
     try { user = await auth.getUserByEmail(leader.data().email); }
-    catch (_) { report.needsReview++; continue; }
+    catch (error) { review(leader,`Auth: ${error.code ?? 'lookup-failed'}`); continue; }
     if (user.uid === leader.id) continue;
     const target = db.doc(`leaders/${user.uid}`);
     const existing = await target.get();
     if (existing.exists && (existing.data().email !== leader.data().email ||
         existing.data().role !== leader.data().role || existing.data().status !== leader.data().status)) {
-      report.needsReview++; continue;
+      review(leader,'Conflicting UID profile'); continue;
     }
     report.leaders++;
     if (!apply) continue;
@@ -79,12 +72,12 @@ async function main() {
       const data = doc.data();
       const patch = {};
       if (data.archived === undefined) patch.archived = false;
-      if (!(data.createdAt instanceof Timestamp)) { report.needsReview++; continue; }
+      if (!(data.createdAt instanceof Timestamp)) { review(doc,'Missing or invalid createdAt'); continue; }
       if (collection === 'jovenes') {
         patch.searchName = String(data.nombre ?? '').trim().toLowerCase();
         const birth = date(data.fechaNacimiento);
         if (birth && !(data.fechaNacimiento instanceof Timestamp)) patch.fechaNacimiento = birth;
-        if (!birth) report.needsReview++;
+        if (!birth) review(doc,'Missing or invalid fechaNacimiento');
       }
       if (collection === 'reportes' || collection === 'actividades') {
         const normalized = date(data.fecha);
@@ -92,7 +85,7 @@ async function main() {
         if (!normalized && collection === 'reportes' && data.fecha == null) {
           patch.fecha = data.createdAt;
           patch.fechaInferredFromCreatedAt = true;
-        } else if (!normalized) report.needsReview++;
+        } else if (!normalized) review(doc,'Invalid fecha');
       }
       if (Object.keys(patch).some(key => patch[key] !== data[key])) await saveWithBackup(doc,patch);
     }
@@ -101,17 +94,27 @@ async function main() {
   for (const doc of await all('asistencias')) {
     let id;
     try { id = attendanceId(doc.data().activityId,doc.data().jovenId); }
-    catch (_) { report.needsReview++; continue; }
+    catch (_) { review(doc,'Invalid attendance identity'); continue; }
     if (!groups.has(id)) groups.set(id,[]);
     groups.get(id).push(doc);
   }
   for (const [id, docs] of groups) {
     docs.sort((a,b) => (b.data().updatedAt?.toMillis?.() ?? 0) - (a.data().updatedAt?.toMillis?.() ?? 0) || b.id.localeCompare(a.id));
-    if (typeof docs[0].data().attended !== 'boolean' || docs.length > 150) { report.needsReview++; continue; }
+    if (typeof docs[0].data().attended !== 'boolean' || docs.length > 150) { review(docs[0],'Invalid attendance status or excessive duplicates'); continue; }
     const latest = docs[0].data();
     const activity = await db.doc(`actividades/${latest.activityId}`).get();
     const young = await db.doc(`jovenes/${latest.jovenId}`).get();
-    if (!activity.exists || !young.exists || !date(activity.data().fecha)) { report.needsReview++; continue; }
+    if (!activity.exists || !young.exists) {
+      if (!preserveOrphans) { review(docs[0],'Missing activity/youth'); continue; }
+      const reason=!activity.exists ? 'missing-activity' : 'missing-youth';
+      for (const doc of docs) {
+        report.archivedOrphans++;
+        if(doc.data().archived===true && doc.data().migrationIssue===reason)continue;
+        await saveWithBackup(doc,{archived:true,migrationIssue:reason,archivedAt:FieldValue.serverTimestamp(),archivedBy:'migration'});
+      }
+      continue;
+    }
+    if (!date(activity.data().fecha)) { review(docs[0],'Invalid activity date'); continue; }
     if (docs.length === 1 && docs[0].id === id && latest.activityDate && latest.version) continue;
     report.duplicates += Math.max(0,docs.length-1); report.updated++;
     if (!apply) continue;
@@ -131,7 +134,25 @@ async function main() {
         createdAt:latest.createdAt ?? FieldValue.serverTimestamp()});
     });
   }
-  console.log(JSON.stringify(report,null,2));
-  if (report.needsReview) process.exitCode=2;
+  return report;
 }
-main().catch(error => {console.error(error.message);process.exitCode=1;});
+return main();
+}
+module.exports = {migrate};
+async function cli() {
+  const args=process.argv.slice(2);
+  const option=key=>args[args.indexOf(key)+1];
+  const projectId=args.includes('--project') ? option('--project') : null;
+  const apply=args.includes('--apply');
+  if (!projectId || (apply && (!args.includes('--confirm-project') || option('--confirm-project')!==projectId))) {
+    throw new Error('Usa --project ID para diagnóstico; para escribir añade --apply --confirm-project ID.');
+  }
+  initializeApp({projectId});
+  const db=getFirestore('mora2');
+  try {
+    const report=await migrate({projectId,apply,preserveOrphans:args.includes('--preserve-orphans'),db,auth:getAuth()});
+    console.log(JSON.stringify(report,null,2));
+    if(report.needsReview)process.exitCode=2;
+  } finally { await db.terminate(); }
+}
+if(require.main===module)cli().catch(error=>{console.error(error.message);process.exitCode=1;});

@@ -7,6 +7,7 @@
     "test": "node --test test/domain.test.js",
     "test:rules": "node --test test/rules.test.js",
     "test:integration": "node --test test/integration.test.js",
+    "test:migration": "node --test test/migration.test.js",
     "test:emulators": "node --test test/rules.test.js test/integration.test.js test/migration.test.js",
     "migrate:check": "node scripts/migrate.js",
     "check": "node --check index.js && node --check scripts/migrate.js"

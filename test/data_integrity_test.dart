@@ -61,6 +61,13 @@ void main() {
           'updatedAt': Timestamp.fromMillisecondsSinceEpoch(entry.$4),
         });
       }
+      await db.doc('asistencias/archived').set({
+        'activityId': 'a',
+        'jovenId': 'young',
+        'attended': false,
+        'archived': true,
+        'updatedAt': Timestamp.fromMillisecondsSinceEpoch(4),
+      });
       final unique = latestAttendanceDocuments(
         (await db.collection('asistencias').get()).docs,
       );
